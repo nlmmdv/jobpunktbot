@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { callFunction } from '../../lib/api';
 import { metroMoscow } from '../../data/metro-moscow';
 import { metroSPb } from '../../data/metro-spb';
+import { CreateResumeScreen } from './CreateResumeScreen';
 
 interface Vacancy {
   id: string;
@@ -204,6 +206,7 @@ export const AvailableShiftsScreen = () => {
   const [minDate, setMinDate] = useState('');
   const [minTime, setMinTime] = useState('');
   const [maxTime, setMaxTime] = useState('');
+  const [showCreateResume, setShowCreateResume] = useState(false);
 
   const metroList = userCity === 'Санкт-Петербург' ? metroSPb : metroMoscow;
 
@@ -217,19 +220,19 @@ export const AvailableShiftsScreen = () => {
     if (resume) {
       loadVacancies();
     }
-  }, [selectedMarketplaces, minDate, minTime, maxTime]);
+    // selectedMetro тоже используется внутри loadVacancies для фильтрации —
+    // без него в зависимостях выбор станции метро не перезапускал загрузку.
+  }, [selectedMarketplaces, selectedMetro, minDate, minTime, maxTime]);
 
   const loadResume = async () => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/freelancer-resumes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get', telegramId: profile.telegram_id }),
+      const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
+        action: 'get',
+        telegramId: profile.telegram_id,
       });
-      const data = await response.json();
-      if (data.success && data.resume) {
+      if (data.resume) {
         setResume(data.resume);
       }
     } catch (err) {
@@ -241,44 +244,42 @@ export const AvailableShiftsScreen = () => {
 
   const loadVacancies = async () => {
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/list-vacancies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'temporary',
-          city: userCity,
-        }),
+      const data = await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
+        type: 'temporary',
+        city: userCity,
       });
-      const data = await response.json();
-      if (data.success) {
-        let filtered = data.vacancies || [];
 
-        if (minDate) {
-          filtered = filtered.filter((v: Vacancy) => v.date >= minDate);
-        }
+      let filtered = data.vacancies || [];
 
-        if (minTime) {
-          filtered = filtered.filter((v: Vacancy) => v.start_time >= minTime);
-        }
-
-        if (maxTime) {
-          filtered = filtered.filter((v: Vacancy) => v.end_time <= maxTime);
-        }
-
-        if (selectedMarketplaces.size > 0) {
-          filtered = filtered.filter((v: Vacancy) =>
-            v.marketplaces.some((m) => selectedMarketplaces.has(m))
-          );
-        }
-
-        if (selectedMetro.size > 0) {
-          filtered = filtered.filter((v: Vacancy) =>
-            v.metro_stations.some((m) => selectedMetro.has(m))
-          );
-        }
-
-        setVacancies(filtered);
+      if (minDate) {
+        filtered = filtered.filter((v: Vacancy) => v.date >= minDate);
       }
+
+      if (minTime) {
+        filtered = filtered.filter((v: Vacancy) => v.start_time >= minTime);
+      }
+
+      if (maxTime) {
+        filtered = filtered.filter((v: Vacancy) => v.end_time <= maxTime);
+      }
+
+      if (selectedMarketplaces.size > 0) {
+        filtered = filtered.filter((v: Vacancy) =>
+          v.marketplaces.some((m) => selectedMarketplaces.has(m))
+        );
+      }
+
+      if (selectedMetro.size > 0) {
+        // metro_stations на сервере хранятся как названия станций, а selectedMetro - id.
+        const selectedMetroNames = new Set(
+          Array.from(selectedMetro).map(getMetroStationName).filter(Boolean)
+        );
+        filtered = filtered.filter((v: Vacancy) =>
+          v.metro_stations.some((m) => selectedMetroNames.has(m))
+        );
+      }
+
+      setVacancies(filtered);
     } catch (err) {
       console.error('Failed to load vacancies:', err);
     }
@@ -320,6 +321,18 @@ export const AvailableShiftsScreen = () => {
     );
   }
 
+  if (showCreateResume) {
+    return (
+      <CreateResumeScreen
+        onDone={(newResume) => {
+          setResume(newResume);
+          setShowCreateResume(false);
+        }}
+        onCancel={() => setShowCreateResume(false)}
+      />
+    );
+  }
+
   if (!resume) {
     return (
       <div style={{ padding: '20px 18px', maxWidth: 400, margin: '0 auto', background: '#fff', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
@@ -327,6 +340,12 @@ export const AvailableShiftsScreen = () => {
           <div style={{ fontSize: 48, marginBottom: 24 }}>📝</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#17151F', marginBottom: 8 }}>Создайте резюме</div>
           <div style={{ fontSize: 14, color: '#8B8798', marginBottom: 24 }}>Создайте резюме чтобы просматривать доступные замены</div>
+          <button
+            onClick={() => setShowCreateResume(true)}
+            style={{ width: '100%', padding: 14, border: 'none', borderRadius: 14, background: '#6D28D9', color: '#fff', fontSize: 14, fontWeight: 700, boxShadow: '0 8px 20px rgba(109,40,217,0.25)', cursor: 'pointer' }}
+          >
+            Создать резюме
+          </button>
         </div>
       </div>
     );
@@ -473,6 +492,7 @@ export const AvailableShiftsScreen = () => {
               </div>
 
               <button
+                onClick={() => alert('Функция отклика в разработке')}
                 style={{
                   width: '100%',
                   padding: 9,

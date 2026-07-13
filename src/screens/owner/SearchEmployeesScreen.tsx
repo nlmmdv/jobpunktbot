@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { callFunction, ApiError } from '../../lib/api';
 import { metroMoscow } from '../../data/metro-moscow';
 import { metroSPb } from '../../data/metro-spb';
 
@@ -6,7 +7,6 @@ interface Freelancer {
   id: string;
   first_name: string;
   last_name: string;
-  telegram_id: number;
   city: string;
   about: string;
   marketplaces: string[];
@@ -17,11 +17,9 @@ interface Freelancer {
 
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 const CITIES = ['Москва', 'Санкт-Петербург', 'Все'];
-const EMPLOYMENT_TYPES = ['Все', 'Подработка', 'Постоянная'];
 
 export const SearchEmployeesScreen = () => {
   const [selectedCity, setSelectedCity] = useState('Москва');
-  const [selectedEmploymentType, setSelectedEmploymentType] = useState('Все');
   const [selectedMarketplaces, setSelectedMarketplaces] = useState<Set<string>>(new Set());
   const [selectedMetro, setSelectedMetro] = useState<Set<string>>(new Set());
   const [metroSearch, setMetroSearch] = useState('');
@@ -34,30 +32,30 @@ export const SearchEmployeesScreen = () => {
 
   useEffect(() => {
     loadFreelancers();
-  }, [selectedCity, selectedMarketplaces]);
+  }, [selectedCity, selectedMarketplaces, selectedMetro]);
 
   const loadFreelancers = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/search-freelancers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          city: selectedCity === 'Все' ? 'Все' : selectedCity,
-          marketplace: selectedMarketplaces.size > 0 ? Array.from(selectedMarketplaces)[0] : 'Все',
-        }),
+      const data = await callFunction<{ freelancers: Freelancer[] }>('search-freelancers', {
+        city: selectedCity === 'Все' ? 'Все' : selectedCity,
+        marketplace: selectedMarketplaces.size > 0 ? Array.from(selectedMarketplaces)[0] : 'Все',
       });
 
-      const data = await response.json();
-      if (data.success) {
-        setFreelancers(data.freelancers || []);
-      } else {
-        setError(data.error || 'Ошибка загрузки данных');
+      // Бэкенд не умеет фильтровать по метро, поэтому фильтруем на клиенте.
+      // metro_stations на сервере хранятся как названия станций, а selectedMetro - id, поэтому сравниваем по названиям.
+      let filtered = data.freelancers || [];
+      if (selectedMetro.size > 0) {
+        const selectedMetroNames = new Set(
+          Array.from(selectedMetro).map((id) => metroList.find((s) => s.id === id)?.name).filter(Boolean)
+        );
+        filtered = filtered.filter((f) => f.metro_stations?.some((name) => selectedMetroNames.has(name)));
       }
+      setFreelancers(filtered);
     } catch (err) {
       console.error('Failed to load freelancers:', err);
-      setError('Ошибка загрузки данных');
+      setError(err instanceof ApiError ? err.message : 'Ошибка загрузки данных');
     } finally {
       setLoading(false);
     }
@@ -111,31 +109,6 @@ export const SearchEmployeesScreen = () => {
           >
             {CITIES.map((city) => (<option key={city} value={city}>{city}</option>))}
           </select>
-        </div>
-
-        {/* Employment type filter */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6E6A7C', marginBottom: 6 }}>Тип занятости</label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {EMPLOYMENT_TYPES.map((type) => (
-              <span
-                key={type}
-                onClick={() => setSelectedEmploymentType(type)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  border: selectedEmploymentType === type ? 'none' : '1.5px solid #2563EB',
-                  background: selectedEmploymentType === type ? '#2563EB' : 'transparent',
-                  color: selectedEmploymentType === type ? '#fff' : '#2563EB',
-                  cursor: 'pointer'
-                }}
-              >
-                {type}
-              </span>
-            ))}
-          </div>
         </div>
 
         {/* Marketplace filter */}

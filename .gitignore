@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (local secrets, keep .env.example tracked instead)
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -23,3 +28,10 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Supabase CLI local state
+supabase/.temp
+supabase/.branches
+
+# Claude Code local state
+.claude/settings.local.json

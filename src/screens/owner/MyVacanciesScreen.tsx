@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { callFunction } from '../../lib/api';
 import { metroMoscow } from '../../data/metro-moscow';
 import { metroSPb } from '../../data/metro-spb';
 
@@ -53,15 +54,11 @@ export const MyVacanciesScreen = () => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/owner-vacancies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list', telegramId: profile.telegram_id }),
+      const data = await callFunction<{ vacancies: Vacancy[] }>('owner-vacancies', {
+        action: 'list',
+        telegramId: profile.telegram_id,
       });
-      const data = await response.json();
-      if (data.success) {
-        setVacancies(data.vacancies || []);
-      }
+      setVacancies(data.vacancies || []);
     } catch (err) {
       console.error('Failed to load vacancies:', err);
     } finally {
@@ -96,43 +93,36 @@ export const MyVacanciesScreen = () => {
     try {
       const metroNames = Array.from(formData.metro).map(id => getMetroStationName(id)).filter(Boolean);
 
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/owner-vacancies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create',
-          telegramId: profile.telegram_id,
-          type: selectedType,
-          city: userCity,
-          address: formData.address,
-          metro_stations: metroNames,
-          marketplaces: Array.from(formData.marketplaces),
-          date: selectedType === 'temporary' ? formData.date : null,
-          start_time: selectedType === 'temporary' ? formData.startTime : null,
-          end_time: selectedType === 'temporary' ? formData.endTime : null,
-          schedule: selectedType === 'permanent' ? formData.schedule : null,
-          payment: formData.payment,
-          description: formData.description,
-        }),
+      await callFunction('owner-vacancies', {
+        action: 'create',
+        telegramId: profile.telegram_id,
+        type: selectedType,
+        city: userCity,
+        address: formData.address,
+        metro_stations: metroNames,
+        marketplaces: Array.from(formData.marketplaces),
+        date: selectedType === 'temporary' ? formData.date : null,
+        start_time: selectedType === 'temporary' ? formData.startTime : null,
+        end_time: selectedType === 'temporary' ? formData.endTime : null,
+        schedule: selectedType === 'permanent' ? formData.schedule : null,
+        payment: formData.payment,
+        description: formData.description,
       });
 
-      const data = await response.json();
-      if (data.success) {
-        setShowForm(false);
-        setSelectedType(null);
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          address: '',
-          marketplaces: new Set(),
-          metro: new Set(),
-          startTime: '09:00',
-          endTime: '22:00',
-          schedule: '',
-          payment: 0,
-          description: '',
-        });
-        await loadVacancies();
-      }
+      setShowForm(false);
+      setSelectedType(null);
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        address: '',
+        marketplaces: new Set(),
+        metro: new Set(),
+        startTime: '09:00',
+        endTime: '22:00',
+        schedule: '',
+        payment: 0,
+        description: '',
+      });
+      await loadVacancies();
     } catch (err) {
       console.error('Failed to publish vacancy:', err);
       alert('Ошибка при публикации');
@@ -144,16 +134,8 @@ export const MyVacanciesScreen = () => {
     if (!confirm('Удалить вакансию?')) return;
 
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/owner-vacancies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', telegramId: profile.telegram_id, id }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        await loadVacancies();
-      }
+      await callFunction('owner-vacancies', { action: 'delete', telegramId: profile.telegram_id, id });
+      await loadVacancies();
     } catch (err) {
       console.error('Failed to delete vacancy:', err);
     }
@@ -161,8 +143,6 @@ export const MyVacanciesScreen = () => {
 
   return (
     <div style={{ padding: '20px 18px', maxWidth: 400, margin: '0 auto', background: '#fff', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif' }}>
-      <div onClick={() => {}} style={{ color: '#2563EB', fontSize: 13, fontWeight: 600, marginBottom: 12, cursor: 'pointer' }}>← Назад</div>
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: '#17151F' }}>Мои вакансии</div>
         <span onClick={() => setShowTypeSelector(true)} style={{ padding: '7px 12px', borderRadius: 9, background: '#2563EB', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Создать</span>

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { callFunction } from '../../lib/api';
 import { metroMoscow } from '../../data/metro-moscow';
 import { metroSPb } from '../../data/metro-spb';
+import { CreateResumeScreen } from './CreateResumeScreen';
 
 interface Shift {
   id: string;
@@ -123,6 +125,7 @@ export const FreelancerShiftsScreen = () => {
   const [showMetroSelector, setShowMetroSelector] = useState(false);
   const [metroSearch, setMetroSearch] = useState('');
   const [selectedMetro, setSelectedMetro] = useState<Set<string>>(new Set());
+  const [showCreateResume, setShowCreateResume] = useState(false);
 
   const shiftsWithDates = new Set(shifts.map((s) => s.date));
 
@@ -136,13 +139,11 @@ export const FreelancerShiftsScreen = () => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/freelancer-resumes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get', telegramId: profile.telegram_id }),
+      const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
+        action: 'get',
+        telegramId: profile.telegram_id,
       });
-      const data = await response.json();
-      if (data.success && data.resume) {
+      if (data.resume) {
         setResume(data.resume);
         loadShifts();
       }
@@ -156,13 +157,11 @@ export const FreelancerShiftsScreen = () => {
   const loadShifts = async () => {
     if (!profile?.telegram_id) return;
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/freelancer-shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list', telegramId: profile.telegram_id }),
+      const data = await callFunction<{ shifts: any[] }>('freelancer-shifts', {
+        action: 'list',
+        telegramId: profile.telegram_id,
       });
-      const data = await response.json();
-      if (data.success && data.shifts) {
+      if (data.shifts) {
         const formattedShifts = data.shifts.map((s: any) => ({
           id: s.id,
           date: s.date,
@@ -189,23 +188,17 @@ export const FreelancerShiftsScreen = () => {
     }
 
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/freelancer-shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create',
-          telegramId: profile.telegram_id,
-          date: dateStr,
-          start_time: formData.startTime,
-          end_time: formData.endTime,
-          marketplaces: formData.marketplaces,
-          rate: formData.rate,
-          metro: metroNames,
-        }),
+      const data = await callFunction<{ shift: any }>('freelancer-shifts', {
+        action: 'create',
+        telegramId: profile.telegram_id,
+        date: dateStr,
+        start_time: formData.startTime,
+        end_time: formData.endTime,
+        marketplaces: formData.marketplaces,
+        rate: formData.rate,
+        metro: metroNames,
       });
-
-      const data = await response.json();
-      if (data.success && data.shift) {
+      if (data.shift) {
         const newShift: Shift = {
           id: data.shift.id,
           date: data.shift.date,
@@ -263,20 +256,12 @@ export const FreelancerShiftsScreen = () => {
     if (!profile?.telegram_id) return;
 
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/freelancer-shifts', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete',
-          telegramId: profile.telegram_id,
-          id: shiftId,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setShifts(shifts.filter(s => s.id !== shiftId));
-      }
+      await callFunction('freelancer-shifts', {
+        action: 'delete',
+        telegramId: profile.telegram_id,
+        id: shiftId,
+      }, { method: 'DELETE' });
+      setShifts(shifts.filter(s => s.id !== shiftId));
     } catch (err) {
       console.error('Failed to delete shift:', err);
     }
@@ -296,6 +281,19 @@ export const FreelancerShiftsScreen = () => {
     );
   }
 
+  if (showCreateResume) {
+    return (
+      <CreateResumeScreen
+        onDone={(newResume) => {
+          setResume(newResume);
+          setShowCreateResume(false);
+          loadShifts();
+        }}
+        onCancel={() => setShowCreateResume(false)}
+      />
+    );
+  }
+
   if (!resume) {
     return (
       <div style={{ padding: '20px 18px', maxWidth: 400, margin: '0 auto', background: '#fff', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
@@ -303,6 +301,12 @@ export const FreelancerShiftsScreen = () => {
           <div style={{ fontSize: 48, marginBottom: 24 }}>📝</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#17151F', marginBottom: 8 }}>Создайте резюме</div>
           <div style={{ fontSize: 14, color: '#8B8798', marginBottom: 24 }}>Создайте резюме чтобы создавать подработки</div>
+          <button
+            onClick={() => setShowCreateResume(true)}
+            style={{ width: '100%', padding: 14, border: 'none', borderRadius: 14, background: '#6D28D9', color: '#fff', fontSize: 14, fontWeight: 700, boxShadow: '0 8px 20px rgba(109,40,217,0.25)', cursor: 'pointer' }}
+          >
+            Создать резюме
+          </button>
         </div>
       </div>
     );

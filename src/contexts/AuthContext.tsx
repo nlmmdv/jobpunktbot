@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { callFunction, ApiError } from '../lib/api';
+import { getInitData } from '../lib/telegram';
 
 export type AuthState = 'loading' | 'no_profile' | 'freelancer' | 'owner';
 
@@ -30,9 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshAuth = async () => {
     try {
-      const initData = window.Telegram?.WebApp?.initData || (import.meta.env.DEV ? 'dev-mode' : '');
-
-      if (!initData) {
+      if (!getInitData()) {
         console.log('No initData found, user not authenticated');
         setState('no_profile');
         return;
@@ -40,45 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('Refreshing auth...');
 
-      const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL;
-      if (!functionsUrl) {
-        console.error('VITE_SUPABASE_FUNCTIONS_URL is not set (see .env.example)');
-        setError('Configuration error');
-        setState('no_profile');
-        return;
-      }
-
-      const response = await fetch(`${functionsUrl}/tg-auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ initData }),
-      });
-
-      if (!response.ok) {
-        console.error('Auth error: HTTP', response.status);
-        let errorData;
-        try {
-          errorData = await response.json();
-          console.error('Error details:', errorData);
-        } catch (e) {
-          console.error('Could not parse error response');
-        }
-        setError('Authentication failed');
-        setState('no_profile');
-        return;
-      }
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error('Failed to parse auth response:', e);
-        setError('Authentication failed: invalid response');
-        setState('no_profile');
-        return;
-      }
+      const data = await callFunction<{ profile: Profile | null }>('tg-auth', {});
       const authProfile = data.profile;
 
       if (!authProfile) {
@@ -90,13 +52,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('✅ User authenticated, role:', authProfile.role);
       setProfile(authProfile);
 
-      // Determine auth state based on role
       const authState =
         authProfile.role === 'owner' || authProfile.role === 'admin' ? 'owner' : 'freelancer';
       setState(authState);
     } catch (err) {
       console.error('Auth refresh error:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof ApiError ? err.message : 'Unknown error');
       setState('no_profile');
     }
   };

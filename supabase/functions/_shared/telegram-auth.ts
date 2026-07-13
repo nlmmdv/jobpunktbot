@@ -1,0 +1,101 @@
+// Проверка подписи Telegram WebApp initData по алгоритму из документации:
+// https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+//
+// Без этой проверки любой клиент мог прислать чужой telegramId в теле запроса
+// и читать/менять данные другого пользователя (IDOR).
+
+export interface TelegramUser {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+}
+
+async function hmacSha256(key: BufferSource, data: string): Promise<ArrayBuffer> {
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    key,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  return crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(data));
+}
+
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Проверяет подпись initData и возвращает верифицированные данные пользователя.
+ * Бросает исключение, если подпись неверна, отсутствует или истекла.
+ */
+export async function verifyTelegramInitData(
+  initData: string,
+  botToken: string,
+  maxAgeSeconds = 86400
+): Promise<TelegramUser> {
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  if (!hash) {
+    throw new Error("initData: отсутствует hash");
+  }
+  params.delete("hash");
+
+  const dataCheckString = Array.from(params.entries())
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join("\n");
+
+  const secretKey = await hmacSha256(new TextEncoder().encode("WebAppData"), botToken);
+  const computedHash = toHex(await hmacSha256(secretKey, dataCheckString));
+
+  if (computedHash !== hash) {
+    throw new Error("initData: неверная подпись");
+  }
+
+  const authDate = Number(params.get("auth_date") || "0");
+  if (!authDate || Date.now() / 1000 - authDate > maxAgeSeconds) {
+    throw new Error("initData: срок действия истёк");
+  }
+
+  const userRaw = params.get("user");
+  if (!userRaw) {
+    throw new Error("initData: отсутствуют данные пользователя");
+  }
+
+  return JSON.parse(userRaw) as TelegramUser;
+}
+
+/**
+ * Достаёт проверенный telegramId вызывающего из initData.
+ * В деве (ALLOW_DEV_AUTH=true) допускает мок initData, который присылает
+ * src/lib/telegram.ts вне Telegram: "user=...&hash=dev-mode&auth_date=..."
+ * — только если этот флаг явно включён в переменных окружения функции.
+ */
+export async function requireTelegramId(body: { initData?: string }): Promise<number> {
+  const initData = body.initData;
+  if (!initData) {
+    throw new Error("Unauthorized: initData отсутствует");
+  }
+
+  const allowDevAuth = Deno.env.get("ALLOW_DEV_AUTH") === "true";
+  if (allowDevAuth) {
+    const params = new URLSearchParams(initData);
+    if (params.get("hash") === "dev-mode") {
+      const userRaw = params.get("user");
+      const devUser = userRaw ? JSON.parse(userRaw) : null;
+      if (devUser?.id) return Number(devUser.id);
+    }
+  }
+
+  const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+  if (!botToken) {
+    throw new Error("Server misconfigured: TELEGRAM_BOT_TOKEN не задан");
+  }
+
+  const user = await verifyTelegramInitData(initData, botToken);
+  return user.id;
+}

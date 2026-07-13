@@ -28,12 +28,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onSelectRole }) =>
           is_visible: true,
         });
 
-        window.Telegram.WebApp.MainButton.onClick(() => {
-          setShowRoles(true);
-        });
+        const handleClick = () => setShowRoles(true);
+        window.Telegram.WebApp.MainButton.onClick(handleClick);
 
         return () => {
-          window.Telegram.WebApp.MainButton.offClick(() => {});
+          window.Telegram.WebApp.MainButton.offClick(handleClick);
         };
       }
     } catch (error) {

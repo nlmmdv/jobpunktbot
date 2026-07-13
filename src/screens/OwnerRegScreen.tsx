@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { callFunction, ApiError } from '../lib/api';
 import { Button, Input, Select, Section, Cell, Title, Text } from '@telegram-apps/telegram-ui';
 
 declare global {
@@ -28,7 +29,7 @@ const phoneMask = (value: string) => {
   return '+7' + limited;
 };
 
-export const OwnerRegScreen: React.FC<OwnerRegScreenProps> = ({ onBack }) => {
+export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
   const { refreshAuth } = useAuth();
   const [telegramId, setTelegramId] = useState<number | null>(null);
   const [telegramUsername, setTelegramUsername] = useState<string>('');
@@ -39,43 +40,6 @@ export const OwnerRegScreen: React.FC<OwnerRegScreenProps> = ({ onBack }) => {
   const [city, setCity] = useState('Москва');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    // Get Telegram user ID and username
-    const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    if (user) {
-      setTelegramId(user.id);
-      setTelegramUsername(user.username || '');
-    } else {
-      // Development: use mock ID
-      setTelegramId(123456789);
-      setTelegramUsername('testuser');
-    }
-
-    // Setup MainButton
-    try {
-      if (window.Telegram?.WebApp?.MainButton) {
-        window.Telegram.WebApp.MainButton.setParams({
-          text: 'Зарегистрироваться',
-          color: '#2563EB',
-          is_active: true,
-          is_visible: true,
-        });
-
-        const handleClick = async () => {
-          await handleRegister();
-        };
-
-        window.Telegram.WebApp.MainButton.onClick(handleClick);
-
-        return () => {
-          window.Telegram.WebApp.MainButton.offClick(handleClick);
-        };
-      }
-    } catch (err) {
-      console.error('MainButton setup error:', err);
-    }
-  }, [phone, firstName, lastName, organizationName, city, telegramId]);
 
   const validateForm = (): boolean => {
     if (!firstName.trim()) {
@@ -112,63 +76,65 @@ export const OwnerRegScreen: React.FC<OwnerRegScreenProps> = ({ onBack }) => {
     setError('');
 
     try {
-      let tgInitData = window.Telegram?.WebApp?.initData;
-
-      // Development mode: use mock initData if no real initData
-      if (!tgInitData || tgInitData.length === 0) {
-        const user = { id: telegramId };
-        tgInitData = `user=${JSON.stringify(user)}&hash=mock_hash&auth_date=${Math.floor(Date.now() / 1000)}`;
-      }
-
-      console.log('Calling tg-register for owner...');
-
-      const url = 'https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/tg-register';
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          initData: tgInitData,
-          role: 'owner',
-          phone,
-          first_name: firstName,
-          last_name: lastName,
-          organization_name: organizationName,
-          city,
-          telegram_username: telegramUsername,
-        }),
+      await callFunction('tg-register', {
+        role: 'owner',
+        phone,
+        first_name: firstName,
+        last_name: lastName,
+        organization_name: organizationName,
+        city,
+        telegram_username: telegramUsername,
       });
 
-      console.log('Response status:', response.status);
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error('Failed to parse response as JSON:', e);
-        throw new Error(`Server error: HTTP ${response.status}`);
-      }
-
-      if (!response.ok || data.error) {
-        const errorMsg = data.error || data.details || `Server error: ${response.status}`;
-        console.error('Registration failed with error:', errorMsg);
-        console.error('Full response:', data);
-        throw new Error(errorMsg);
-      }
-
-      console.log('✅ Owner registered successfully');
       await refreshAuth();
-    } catch (err: any) {
-      const errorMsg = err instanceof Error ? err.message : 'Ошибка регистрации';
+    } catch (err) {
       console.error('Registration error:', err);
-      console.error('Full error:', JSON.stringify(err, null, 2));
-      setError(errorMsg);
+      setError(err instanceof ApiError ? err.message : 'Ошибка регистрации');
     } finally {
       setLoading(false);
     }
   };
+
+  // Держим актуальный handleRegister в ref, чтобы обработчик MainButton
+  // не приходилось переподписывать на каждое нажатие клавиши в форме.
+  const handleRegisterRef = useRef(handleRegister);
+  useEffect(() => {
+    handleRegisterRef.current = handleRegister;
+  });
+
+  useEffect(() => {
+    const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (user) {
+      setTelegramId(user.id);
+      setTelegramUsername(user.username || '');
+    } else {
+      setTelegramId(123456789);
+      setTelegramUsername('testuser');
+    }
+
+    try {
+      if (window.Telegram?.WebApp?.MainButton) {
+        window.Telegram.WebApp.MainButton.setParams({
+          text: 'Зарегистрироваться',
+          color: '#2563EB',
+          is_active: true,
+          is_visible: true,
+        });
+
+        const handleClick = () => {
+          handleRegisterRef.current();
+        };
+
+        window.Telegram.WebApp.MainButton.onClick(handleClick);
+
+        return () => {
+          window.Telegram.WebApp.MainButton.offClick(handleClick);
+        };
+      }
+    } catch (err) {
+      console.error('MainButton setup error:', err);
+    }
+  }, []);
 
   return (
     <div style={{ padding: '16px 0' }}>

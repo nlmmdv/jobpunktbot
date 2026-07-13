@@ -1,10 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -15,10 +10,7 @@ Deno.serve(async (req) => {
     const { type, city } = await req.json();
 
     if (!type || !["temporary", "permanent"].includes(type)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid type" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+      return jsonResponse({ success: false, error: "Invalid type" }, 400);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -44,15 +36,9 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    return new Response(
-      JSON.stringify({ success: true, vacancies: vacancies || [] }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return jsonResponse({ success: true, vacancies: vacancies || [] });
   } catch (err) {
     console.error("Error:", err);
-    return new Response(
-      JSON.stringify({ success: false, error: err.message }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }
 });

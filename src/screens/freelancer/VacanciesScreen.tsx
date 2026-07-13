@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { callFunction } from '../../lib/api';
+import { CreateResumeScreen } from './CreateResumeScreen';
 
 interface Resume {
   id: string;
@@ -21,6 +23,7 @@ export const VacanciesScreen = () => {
   const [resume, setResume] = useState<Resume | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateResume, setShowCreateResume] = useState(false);
 
   useEffect(() => {
     if (profile?.telegram_id) {
@@ -32,13 +35,11 @@ export const VacanciesScreen = () => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/freelancer-resumes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get', telegramId: profile.telegram_id }),
+      const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
+        action: 'get',
+        telegramId: profile.telegram_id,
       });
-      const data = await response.json();
-      if (data.success && data.resume) {
+      if (data.resume) {
         setResume(data.resume);
         loadVacancies();
       }
@@ -51,18 +52,18 @@ export const VacanciesScreen = () => {
 
   const loadVacancies = async () => {
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/list-vacancies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'permanent', city: profile?.city || 'Все' }),
+      const data = await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
+        type: 'permanent',
+        city: profile?.city || 'Все',
       });
-      const data = await response.json();
-      if (data.success) {
-        setVacancies(data.vacancies || []);
-      }
+      setVacancies(data.vacancies || []);
     } catch (err) {
       console.error('Failed to load vacancies:', err);
     }
+  };
+
+  const handleApply = () => {
+    alert('Функция отклика в разработке');
   };
 
   if (loading) {
@@ -70,6 +71,19 @@ export const VacanciesScreen = () => {
       <div style={{ padding: '20px 18px', maxWidth: 400, margin: '0 auto', background: '#fff', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif' }}>
         <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8B8798', fontSize: 14 }}>Загрузка...</div>
       </div>
+    );
+  }
+
+  if (showCreateResume) {
+    return (
+      <CreateResumeScreen
+        onDone={(newResume) => {
+          setResume(newResume);
+          setShowCreateResume(false);
+          loadVacancies();
+        }}
+        onCancel={() => setShowCreateResume(false)}
+      />
     );
   }
 
@@ -81,6 +95,7 @@ export const VacanciesScreen = () => {
           <div style={{ fontSize: 18, fontWeight: 800, color: '#17151F', marginBottom: 8 }}>Создайте резюме</div>
           <div style={{ fontSize: 14, color: '#8B8798', marginBottom: 24 }}>Создайте резюме чтобы просматривать вакансии и откликаться</div>
           <button
+            onClick={() => setShowCreateResume(true)}
             style={{ width: '100%', padding: 14, border: 'none', borderRadius: 14, background: '#6D28D9', color: '#fff', fontSize: 14, fontWeight: 700, boxShadow: '0 8px 20px rgba(109,40,217,0.25)', cursor: 'pointer' }}
           >
             Создать резюме
@@ -142,6 +157,7 @@ export const VacanciesScreen = () => {
               </div>
 
               <button
+                onClick={handleApply}
                 style={{
                   width: '100%',
                   padding: 10,

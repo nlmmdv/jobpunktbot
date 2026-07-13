@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { callFunction, ApiError } from '../../lib/api';
 
 export const ProfileScreen = () => {
   const { profile } = useAuth();
@@ -17,34 +18,26 @@ export const ProfileScreen = () => {
     setSaving(true);
 
     try {
-      const response = await fetch('https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/update-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await callFunction<{ profile: { first_name: string; last_name: string; city: string; status?: string } }>(
+        'update-profile',
+        {
           telegramId: profile.telegram_id,
           first_name: formData.first_name,
           last_name: formData.last_name,
           city: formData.city,
           about: formData.about,
-        }),
+        }
+      );
+      setShowEditModal(false);
+      setFormData({
+        first_name: data.profile.first_name,
+        last_name: data.profile.last_name,
+        city: data.profile.city,
+        about: data.profile.status || '',
       });
-
-      const data = await response.json();
-      if (data.success) {
-        setShowEditModal(false);
-        // Обновляем отображаемые данные
-        setFormData({
-          first_name: data.profile.first_name,
-          last_name: data.profile.last_name,
-          city: data.profile.city,
-          about: data.profile.status || '',
-        });
-      } else {
-        alert('Ошибка при сохранении: ' + (data.error || 'Неизвестная ошибка'));
-      }
     } catch (err) {
       console.error('Failed to save profile:', err);
-      alert('Ошибка при сохранении профиля');
+      alert(err instanceof ApiError ? err.message : 'Ошибка при сохранении профиля');
     } finally {
       setSaving(false);
     }
@@ -72,7 +65,7 @@ export const ProfileScreen = () => {
               <span style={{ fontSize: 16 }}>📱</span>
               <div>
                 <div style={{ fontSize: 11, color: '#8B8798' }}>Телефон</div>
-                <div style={{ fontSize: 14, color: '#17151F', fontWeight: 600 }}>{(profile as any).phone || '—'}</div>
+                <div style={{ fontSize: 14, color: '#17151F', fontWeight: 600 }}>{profile.phone || '—'}</div>
               </div>
             </div>
             <div style={{ height: 1, background: '#ECEAF4', marginBottom: 12 }} />
@@ -126,7 +119,7 @@ export const ProfileScreen = () => {
             <div style={{ fontSize: 12, fontWeight: 600, color: '#6E6A7C', marginBottom: 6 }}>Телефон</div>
             <input
               type="text"
-              value={(profile as any).phone || ''}
+              value={profile?.phone || ''}
               disabled
               style={{ width: '100%', padding: '12px 14px', borderRadius: 12, background: '#EDEAF4', border: '1.5px solid #E7E4F1', color: '#8B8798', fontSize: 14, marginBottom: 12, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', cursor: 'not-allowed' }}
             />

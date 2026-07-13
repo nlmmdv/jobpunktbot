@@ -1,10 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Публичный поиск фрилансеров не требует авторизации, но не должен отдавать
+// персональные данные (телефон, telegram_id) незнакомым вызывающим — раньше
+// select("*") отдавал их всем без ограничений.
+const PUBLIC_COLUMNS =
+  "id, first_name, last_name, city, about, photo_url, marketplaces, preferred_schedule, hourly_rate, metro_stations";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,7 +26,7 @@ Deno.serve(async (req) => {
 
     let query = supabase
       .from("freelancer_resumes")
-      .select("*")
+      .select(PUBLIC_COLUMNS)
       .eq("status", "active");
 
     if (city && city !== "Все") {
@@ -40,15 +41,9 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    return new Response(
-      JSON.stringify({ success: true, freelancers: freelancers || [] }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return jsonResponse({ success: true, freelancers: freelancers || [] });
   } catch (err) {
     console.error("Error:", err);
-    return new Response(
-      JSON.stringify({ success: false, error: err.message }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+    return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }
 });

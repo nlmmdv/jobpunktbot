@@ -1,0 +1,257 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { Button, Input, Select, Section, Cell, Title, Text } from '@telegram-apps/telegram-ui';
+
+declare global {
+  interface Window {
+    Telegram?: any;
+  }
+}
+
+interface OwnerRegScreenProps {
+  onBack: () => void;
+}
+
+const phoneMask = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 0) return '';
+  if (digits === '8') return '+7';
+
+  const limited = digits.slice(0, 11);
+  if (limited.startsWith('8')) {
+    const rest = limited.slice(1);
+    return '+7' + rest;
+  }
+  if (limited.startsWith('7')) {
+    return '+' + limited;
+  }
+  return '+7' + limited;
+};
+
+export const OwnerRegScreen: React.FC<OwnerRegScreenProps> = ({ onBack }) => {
+  const { refreshAuth } = useAuth();
+  const [telegramId, setTelegramId] = useState<number | null>(null);
+  const [telegramUsername, setTelegramUsername] = useState<string>('');
+  const [phone, setPhone] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  const [city, setCity] = useState('Москва');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    // Get Telegram user ID and username
+    const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (user) {
+      setTelegramId(user.id);
+      setTelegramUsername(user.username || '');
+    } else {
+      // Development: use mock ID
+      setTelegramId(123456789);
+      setTelegramUsername('testuser');
+    }
+
+    // Setup MainButton
+    try {
+      if (window.Telegram?.WebApp?.MainButton) {
+        window.Telegram.WebApp.MainButton.setParams({
+          text: 'Зарегистрироваться',
+          color: '#2563EB',
+          is_active: true,
+          is_visible: true,
+        });
+
+        const handleClick = async () => {
+          await handleRegister();
+        };
+
+        window.Telegram.WebApp.MainButton.onClick(handleClick);
+
+        return () => {
+          window.Telegram.WebApp.MainButton.offClick(handleClick);
+        };
+      }
+    } catch (err) {
+      console.error('MainButton setup error:', err);
+    }
+  }, [phone, firstName, lastName, organizationName, city, telegramId]);
+
+  const validateForm = (): boolean => {
+    if (!firstName.trim()) {
+      setError('Укажите имя');
+      return false;
+    }
+    if (!lastName.trim()) {
+      setError('Укажите фамилию');
+      return false;
+    }
+    if (!phone.trim()) {
+      setError('Укажите телефон');
+      return false;
+    }
+    if (phone.replace(/\D/g, '').length !== 11) {
+      setError('Телефон должен содержать 11 цифр');
+      return false;
+    }
+    if (!organizationName.trim()) {
+      setError('Укажите наименование организации');
+      return false;
+    }
+    return true;
+  };
+
+  const handleRegister = async () => {
+    if (!validateForm()) return;
+    if (!telegramId) {
+      setError('Ошибка: не удалось получить Telegram ID');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      let tgInitData = window.Telegram?.WebApp?.initData;
+
+      // Development mode: use mock initData if no real initData
+      if (!tgInitData || tgInitData.length === 0) {
+        const user = { id: telegramId };
+        tgInitData = `user=${JSON.stringify(user)}&hash=mock_hash&auth_date=${Math.floor(Date.now() / 1000)}`;
+      }
+
+      console.log('Calling tg-register for owner...');
+
+      const url = 'https://tsicyeumkwvnfkryxfjl.supabase.co/functions/v1/tg-register';
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          initData: tgInitData,
+          role: 'owner',
+          phone,
+          first_name: firstName,
+          last_name: lastName,
+          organization_name: organizationName,
+          city,
+          telegram_username: telegramUsername,
+        }),
+      });
+
+      console.log('Response status:', response.status);
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error('Failed to parse response as JSON:', e);
+        throw new Error(`Server error: HTTP ${response.status}`);
+      }
+
+      if (!response.ok || data.error) {
+        const errorMsg = data.error || data.details || `Server error: ${response.status}`;
+        console.error('Registration failed with error:', errorMsg);
+        console.error('Full response:', data);
+        throw new Error(errorMsg);
+      }
+
+      console.log('✅ Owner registered successfully');
+      await refreshAuth();
+    } catch (err: any) {
+      const errorMsg = err instanceof Error ? err.message : 'Ошибка регистрации';
+      console.error('Registration error:', err);
+      console.error('Full error:', JSON.stringify(err, null, 2));
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: '16px 0' }}>
+      <Button
+        size="s"
+        onClick={onBack}
+        style={{ color: '#2563EB', marginBottom: '16px', background: 'none', border: 'none' }}
+      >
+        ← Назад
+      </Button>
+
+      <Title level="2" style={{ marginBottom: '4px' }}>Регистрация владельца ПВЗ</Title>
+      <Text style={{ marginBottom: '20px', color: 'var(--tg-theme-hint-color)' }}>Заполните данные организации</Text>
+
+      <Section>
+        <Cell subtitle="Read-only">{telegramId || 'Загрузка...'}</Cell>
+        <Cell subtitle="@Username">@{telegramUsername || '—'}</Cell>
+      </Section>
+
+      <Section header="Личные данные">
+        <Input
+          type="tel"
+          placeholder="+7"
+          value={phone}
+          onChange={(e) => {
+            setPhone(phoneMask(e.target.value));
+            setError('');
+          }}
+          header="Телефон *"
+        />
+        <Input
+          type="text"
+          placeholder="Иван"
+          value={firstName}
+          onChange={(e) => {
+            setFirstName(e.target.value);
+            setError('');
+          }}
+          header="Имя *"
+        />
+        <Input
+          type="text"
+          placeholder="Петров"
+          value={lastName}
+          onChange={(e) => {
+            setLastName(e.target.value);
+            setError('');
+          }}
+          header="Фамилия *"
+        />
+        <Input
+          type="text"
+          placeholder="ИП Иванов"
+          value={organizationName}
+          onChange={(e) => {
+            setOrganizationName(e.target.value);
+            setError('');
+          }}
+          header="Наименование организации *"
+        />
+        <Select
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          header="Город"
+        >
+          <option>Москва</option>
+          <option>Санкт-Петербург</option>
+          <option>Другое</option>
+        </Select>
+      </Section>
+
+      {error && <Text style={{ color: '#DC2626', marginBottom: '12px', padding: '12px' }}>{error}</Text>}
+
+      <Section>
+        <Button
+          size="l"
+          onClick={handleRegister}
+          disabled={loading}
+          style={{ width: '100%' }}
+        >
+          {loading ? 'Регистрация...' : 'Зарегистрироваться'}
+        </Button>
+      </Section>
+    </div>
+  );
+};

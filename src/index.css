@@ -1,0 +1,246 @@
+@import './styles/design-system.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* ПроПункт light theme — finalized palette */
+  --color-bg-app: #ffffff;
+  --color-text-primary: #17151F;
+  --color-text-secondary: #8B8798;
+  --color-text-muted: #B7B2C4;
+  --color-text-hint: #6E6A7C;
+
+  --color-bg-card: #F7F6FB;
+  --color-bg-card-owner: #F5F8FE;
+  --color-bg-menu-owner: #F0F5FE;
+
+  --color-border-light: #ECEAF4;
+  --color-border-light-owner: #E1EBFB;
+  --color-border-input: #E7E4F1;
+  --color-border-divider: #DEDBE8;
+
+  --color-badge-temp-freelancer: #EDE4FB;
+  --color-badge-temp-owner: #DCE9FE;
+  --color-badge-perm: #E9E3FB;
+  --color-badge-danger: #FDECEC;
+  --color-text-badge-danger: #DC2626;
+
+  --color-accent-freelancer: #6D28D9;
+  --color-accent-owner: #2563EB;
+  --color-badge-text-freelancer: #7C3AED;
+  --color-badge-text-owner: #1D4ED8;
+
+  --gradient-freelancer: linear-gradient(135deg, #6D28D9, #5B21B6);
+  --gradient-owner: linear-gradient(135deg, #2563EB, #1D4ED8);
+
+  --shadow-card: 0 2px 10px rgba(23, 21, 31, 0.04);
+  --shadow-btn-freelancer: 0 8px 20px rgba(109, 40, 217, 0.25);
+  --shadow-btn-owner: 0 8px 18px rgba(37, 99, 235, 0.22);
+
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--tg-theme-bg-color);
+  color: var(--tg-theme-text-color);
+}
+
+/* ПроПункт Design Tokens */
+.bg-white {
+  @apply bg-[#ffffff];
+}
+
+.bg-card {
+  @apply bg-[var(--color-bg-card)];
+}
+
+.bg-card-owner {
+  @apply bg-[var(--color-bg-card-owner)];
+}
+
+.bg-menu-owner {
+  @apply bg-[var(--color-bg-menu-owner)];
+}
+
+.text-text-primary {
+  @apply text-[var(--color-text-primary)];
+}
+
+.text-text-secondary {
+  @apply text-[var(--color-text-secondary)];
+}
+
+.text-text-muted {
+  @apply text-[var(--color-text-muted)];
+}
+
+.text-text-hint {
+  @apply text-[var(--color-text-hint)];
+}
+
+.border-border-light {
+  @apply border-[var(--color-border-light)];
+}
+
+.border-border-light-owner {
+  @apply border-[var(--color-border-light-owner)];
+}
+
+.border-border-input {
+  @apply border-[var(--color-border-input)];
+}
+
+.border-border-divider {
+  @apply border-[var(--color-border-divider)];
+}
+
+.bg-badge-temp-freelancer {
+  @apply bg-[var(--color-badge-temp-freelancer)];
+}
+
+.text-badge-temp-freelancer {
+  @apply text-[var(--color-badge-text-freelancer)];
+}
+
+.bg-badge-temp-owner {
+  @apply bg-[var(--color-badge-temp-owner)];
+}
+
+.text-badge-temp-owner {
+  @apply text-[var(--color-badge-text-owner)];
+}
+
+.bg-badge-perm {
+  @apply bg-[var(--color-badge-perm)];
+}
+
+.text-badge-perm {
+  @apply text-[var(--color-badge-text-freelancer)];
+}
+
+.bg-badge-danger {
+  @apply bg-[var(--color-badge-danger)];
+}
+
+.text-badge-danger {
+  @apply text-[var(--color-text-badge-danger)];
+}
+
+.bg-accent-freelancer {
+  @apply bg-[var(--color-accent-freelancer)];
+}
+
+.bg-accent-owner {
+  @apply bg-[var(--color-accent-owner)];
+}
+
+.text-accent-freelancer {
+  @apply text-[var(--color-accent-freelancer)];
+}
+
+.text-accent-owner {
+  @apply text-[var(--color-accent-owner)];
+}
+
+.shadow-card {
+  @apply shadow-[var(--shadow-card)];
+}
+
+.shadow-btn-freelancer {
+  @apply shadow-[var(--shadow-btn-freelancer)];
+}
+
+.shadow-btn-owner {
+  @apply shadow-[var(--shadow-btn-owner)];
+}
+
+.rounded-card {
+  @apply rounded-[14px];
+}
+
+.rounded-input {
+  @apply rounded-[12px];
+}
+
+.rounded-chip {
+  @apply rounded-[999px];
+}
+
+.rounded-sm {
+  @apply rounded-[7px];
+}
+
+/* Legacy Telegram colors (deprecated, remove later) */
+.bg-tg-bg {
+  @apply bg-[var(--tg-theme-bg-color)];
+}
+
+.bg-tg-secondary {
+  @apply bg-[var(--tg-theme-secondary-bg-color)];
+}
+
+.bg-tg-section-bg {
+  @apply bg-[var(--tg-theme-section-bg-color)];
+}
+
+.text-tg-text {
+  @apply text-[var(--tg-theme-text-color)];
+}
+
+.text-tg-hint {
+  @apply text-[var(--tg-theme-hint-color)];
+}
+
+.text-tg-link {
+  @apply text-[var(--tg-theme-link-color)];
+}
+
+.bg-tg-button {
+  @apply bg-[var(--tg-theme-button-color)];
+}
+
+.text-tg-button {
+  @apply text-[var(--tg-theme-button-text-color)];
+}
+
+.text-tg-accent {
+  @apply text-[#6D28D9];
+}
+
+a {
+  color: var(--tg-theme-link-color);
+  text-decoration: none;
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Disable zoom on input focus for mobile */
+@supports (-webkit-touch-callout: none) {
+  input, textarea, select {
+    font-size: 16px;
+  }
+}

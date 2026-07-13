@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Button, Text, Title } from '@telegram-apps/telegram-ui';
 
 declare global {
@@ -8,12 +8,10 @@ declare global {
 }
 
 interface WelcomeScreenProps {
-  onSelectRole: (role: 'freelancer' | 'owner') => void;
+  onStart: () => void;
 }
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onSelectRole }) => {
-  const [showRoles, setShowRoles] = useState(false);
-
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   useEffect(() => {
     try {
       if (window.Telegram?.WebApp) {
@@ -26,57 +24,66 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onSelectRole }) =>
     } catch (error) {
       console.error('Telegram WebApp error:', error);
     }
-  }, []);
+  }, [onStart]);
 
-  if (showRoles) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '20px' }}>
-        <Title level="1" style={{ textAlign: 'center', marginBottom: '16px' }}>Выберите роль</Title>
-
-        <Button
-          size="l"
-          onClick={() => onSelectRole('freelancer')}
-          style={{
-            background: 'linear-gradient(135deg, #6D28D9, #5B21B6)',
-            color: '#fff',
-            padding: '20px',
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: '30px', marginBottom: '8px' }}>💼</div>
-          <div style={{ fontSize: '16px', fontWeight: 700 }}>Ищу работу</div>
-          <div style={{ fontSize: '13px', opacity: 0.8 }}>Фрилансер на ПВЗ</div>
-        </Button>
-
-        <Button
-          size="l"
-          onClick={() => onSelectRole('owner')}
-          style={{
-            background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
-            color: '#fff',
-            padding: '20px',
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: '30px', marginBottom: '8px' }}>🏢</div>
-          <div style={{ fontSize: '16px', fontWeight: 700 }}>Ищу сотрудников</div>
-          <div style={{ fontSize: '13px', opacity: 0.8 }}>Владелец ПВЗ</div>
-        </Button>
-      </div>
-    );
-  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '20px', textAlign: 'center' }}>
-      <div style={{ fontSize: '48px', marginBottom: '24px' }}>📦</div>
-      <Title level="1" style={{ marginBottom: '8px' }}>ПроПункт</Title>
-      <Text style={{ marginBottom: '16px', color: 'var(--tg-theme-hint-color)' }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      padding: '20px',
+      textAlign: 'center',
+      background: 'linear-gradient(135deg, #F7F6FB 0%, #EDE4FB 50%, #F7F6FB 100%)',
+    }}>
+      <div style={{
+        width: '100px',
+        height: '100px',
+        background: 'linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%)',
+        borderRadius: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '48px',
+        marginBottom: '32px',
+        boxShadow: '0 8px 24px rgba(109, 40, 217, 0.3)',
+      }}>
+        📦
+      </div>
+      <Title level="1" style={{
+        marginBottom: '8px',
+        color: '#17151F',
+        fontSize: '28px',
+        fontWeight: 800,
+      }}>
+        ПроПункт
+      </Title>
+      <Text style={{
+        marginBottom: '48px',
+        color: '#6E6A7C',
+        fontSize: '15px',
+      }}>
         Биржа труда для ПВЗ
       </Text>
-      <Text style={{ marginBottom: '32px', opacity: 0.7 }}>
-        Соедините спрос и предложение на рынке курьерских услуг
-      </Text>
-      <Button size="l" onClick={() => setShowRoles(true)}>
+      <Button
+        size="l"
+        onClick={onStart}
+        style={{
+          width: '100%',
+          maxWidth: '280px',
+          padding: '14px 24px',
+          background: 'linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%)',
+          color: '#fff',
+          fontSize: '16px',
+          fontWeight: 700,
+          border: 'none',
+          borderRadius: '12px',
+          cursor: 'pointer',
+          boxShadow: '0 8px 20px rgba(109, 40, 217, 0.25)',
+        }}
+      >
         Начать
       </Button>
     </div>

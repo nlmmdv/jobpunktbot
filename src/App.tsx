@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { WelcomeScreen } from './screens/WelcomeScreen';
+import { RegistrationScreen } from './screens/RegistrationScreen';
 import { FreelancerRegScreen } from './screens/FreelancerRegScreen';
 import { OwnerRegScreen } from './screens/OwnerRegScreen';
 import { FreelancerMainScreen } from './screens/FreelancerMainScreen';
 import { OwnerMainScreen } from './screens/OwnerMainScreen';
 
-type RegistrationStep = 'welcome' | 'freelancer_reg' | 'owner_reg';
+type RegistrationStep = 'landing' | 'registration' | 'freelancer_reg' | 'owner_reg';
 
 function App() {
   const { state } = useAuth();
-  const [regStep, setRegStep] = useState<RegistrationStep>('welcome');
+  const [regStep, setRegStep] = useState<RegistrationStep>('landing');
+
+  const handleStartRegistration = () => {
+    setRegStep('registration');
+  };
 
   const handleSelectRole = (role: 'freelancer' | 'owner') => {
     if (role === 'freelancer') {
@@ -20,8 +25,12 @@ function App() {
     }
   };
 
-  const handleBackToWelcome = () => {
-    setRegStep('welcome');
+  const handleBackToRegistration = () => {
+    setRegStep('registration');
+  };
+
+  const handleBackToLanding = () => {
+    setRegStep('landing');
   };
 
   // Loading state
@@ -47,14 +56,18 @@ function App() {
 
   // Registration flow for new users
   if (state === 'no_profile') {
-    if (regStep === 'welcome') {
-      return <WelcomeScreen onSelectRole={handleSelectRole} />;
+    if (regStep === 'landing') {
+      return <WelcomeScreen onStart={handleStartRegistration} />;
+    }
+
+    if (regStep === 'registration') {
+      return <RegistrationScreen onSelectRole={handleSelectRole} onBack={handleBackToLanding} />;
     }
 
     if (regStep === 'freelancer_reg') {
       return (
         <FreelancerRegScreen
-          onBack={handleBackToWelcome}
+          onBack={handleBackToRegistration}
         />
       );
     }
@@ -62,7 +75,7 @@ function App() {
     if (regStep === 'owner_reg') {
       return (
         <OwnerRegScreen
-          onBack={handleBackToWelcome}
+          onBack={handleBackToRegistration}
         />
       );
     }

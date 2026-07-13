@@ -19,21 +19,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onSelectRole }) =>
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
-
-        // Setup MainButton
-        window.Telegram.WebApp.MainButton.setParams({
-          text: 'Начать',
-          color: '#6D28D9',
-          is_active: true,
-          is_visible: true,
-        });
-
-        const handleClick = () => setShowRoles(true);
-        window.Telegram.WebApp.MainButton.onClick(handleClick);
-
-        return () => {
-          window.Telegram.WebApp.MainButton.offClick(handleClick);
-        };
+        // Кнопку «Начать» рисуем на странице (см. ниже), нативный MainButton
+        // не используем, чтобы кнопка не дублировалась внутри Telegram.
+        window.Telegram.WebApp.MainButton?.hide();
       }
     } catch (error) {
       console.error('Telegram WebApp error:', error);

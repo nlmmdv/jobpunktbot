@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { callFunction, ApiError } from '../lib/api';
 import { Button, Input, Select, Section, Cell, Title, Text } from '@telegram-apps/telegram-ui';
@@ -95,13 +95,6 @@ export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
     }
   };
 
-  // Держим актуальный handleRegister в ref, чтобы обработчик MainButton
-  // не приходилось переподписывать на каждое нажатие клавиши в форме.
-  const handleRegisterRef = useRef(handleRegister);
-  useEffect(() => {
-    handleRegisterRef.current = handleRegister;
-  });
-
   useEffect(() => {
     const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
     if (user) {
@@ -112,27 +105,12 @@ export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
       setTelegramUsername('testuser');
     }
 
+    // Кнопку «Зарегистрироваться» рисуем на странице (см. ниже), нативный
+    // MainButton не используем, чтобы кнопка не дублировалась внутри Telegram.
     try {
-      if (window.Telegram?.WebApp?.MainButton) {
-        window.Telegram.WebApp.MainButton.setParams({
-          text: 'Зарегистрироваться',
-          color: '#2563EB',
-          is_active: true,
-          is_visible: true,
-        });
-
-        const handleClick = () => {
-          handleRegisterRef.current();
-        };
-
-        window.Telegram.WebApp.MainButton.onClick(handleClick);
-
-        return () => {
-          window.Telegram.WebApp.MainButton.offClick(handleClick);
-        };
-      }
+      window.Telegram?.WebApp?.MainButton?.hide();
     } catch (err) {
-      console.error('MainButton setup error:', err);
+      console.error('MainButton hide error:', err);
     }
   }, []);
 

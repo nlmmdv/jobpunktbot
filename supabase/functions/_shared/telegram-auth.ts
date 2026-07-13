@@ -91,11 +91,27 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
     }
   }
 
-  const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
-  if (!botToken) {
-    throw new Error("Server misconfigured: TELEGRAM_BOT_TOKEN не задан");
+  // На проекте несколько ботов (основной и job-бот). Telegram подписывает
+  // initData токеном того бота, через которого открыт мини-апп, поэтому
+  // принимаем валидную подпись от любого из настроенных токенов.
+  const botTokens = [
+    Deno.env.get("TELEGRAM_BOT_TOKEN"),
+    Deno.env.get("TELEGRAM_JOBBOT_TOKEN"),
+  ].filter((t): t is string => Boolean(t));
+
+  if (botTokens.length === 0) {
+    throw new Error("Server misconfigured: не задан ни один TELEGRAM_*_TOKEN");
   }
 
-  const user = await verifyTelegramInitData(initData, botToken);
-  return user.id;
+  let lastError: unknown;
+  for (const token of botTokens) {
+    try {
+      const user = await verifyTelegramInitData(initData, token);
+      return user.id;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("initData: неверная подпись");
 }

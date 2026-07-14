@@ -26,14 +26,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log("[tg-auth] Extracting user from initData");
+    console.log("[tg-auth] initData length:", initData?.length);
     const params = new URLSearchParams(initData);
     const userRaw = params.get("user");
+    const hash = params.get("hash");
+
+    console.log(`[tg-auth] hash=${hash}, user present=${!!userRaw}`);
 
     if (!userRaw) {
       console.log("[tg-auth] No user in initData");
-      return new Response(JSON.stringify({ success: false, error: "No user" }), {
-        status: 401,
+      return new Response(JSON.stringify({ success: false, error: "No user", profile: null }), {
+        status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
@@ -41,16 +44,17 @@ Deno.serve(async (req) => {
     let user;
     try {
       user = JSON.parse(userRaw);
-      console.log(`[tg-auth] User parsed: id=${user.id}`);
+      console.log(`[tg-auth] User parsed: id=${user.id}, name=${user.first_name}`);
     } catch (e) {
       console.error("[tg-auth] Failed to parse user JSON:", e);
-      return new Response(JSON.stringify({ success: false, error: "Invalid user JSON" }), {
-        status: 400,
+      return new Response(JSON.stringify({ success: false, error: "Invalid user JSON", profile: null }), {
+        status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    console.log("[tg-auth] Returning success");
+    // Возвращаем что пользователь не зарегистрирован (требует регистрации)
+    console.log("[tg-auth] User not registered, returning null profile");
     return new Response(JSON.stringify({ success: true, profile: null }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },

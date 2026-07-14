@@ -44,15 +44,42 @@ CREATE TABLE IF NOT EXISTS owner_profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
+-- Create freelancer_shifts table
+CREATE TABLE IF NOT EXISTS freelancer_shifts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  freelancer_telegram_id BIGINT NOT NULL REFERENCES profiles(telegram_id),
+  title TEXT NOT NULL,
+  description TEXT,
+  city TEXT,
+  address TEXT,
+  date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  hourly_rate DECIMAL(10,2),
+  marketplaces TEXT[] DEFAULT '{}',
+  metro_stations TEXT[] DEFAULT '{}',
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
 -- Create vacancies table
 CREATE TABLE IF NOT EXISTS vacancies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_telegram_id BIGINT NOT NULL REFERENCES profiles(telegram_id),
+  type TEXT DEFAULT 'permanent' CHECK (type IN ('permanent', 'temporary')),
   title TEXT NOT NULL,
   description TEXT,
+  address TEXT,
   city TEXT,
+  date DATE,
+  start_time TIME,
+  end_time TIME,
   employment_type TEXT CHECK (employment_type IN ('full-time', 'part-time', 'contract')),
   hourly_rate DECIMAL(10,2),
+  payment DECIMAL(10,2),
+  marketplaces TEXT[] DEFAULT '{}',
+  metro_stations TEXT[] DEFAULT '{}',
   status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed', 'filled')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
@@ -73,7 +100,10 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE INDEX idx_profiles_telegram_id ON profiles(telegram_id);
 CREATE INDEX idx_freelancer_resumes_telegram_id ON freelancer_resumes(telegram_id);
 CREATE INDEX idx_owner_profiles_telegram_id ON owner_profiles(telegram_id);
+CREATE INDEX idx_freelancer_shifts_freelancer_id ON freelancer_shifts(freelancer_telegram_id);
+CREATE INDEX idx_freelancer_shifts_city ON freelancer_shifts(city);
 CREATE INDEX idx_vacancies_owner_telegram_id ON vacancies(owner_telegram_id);
+CREATE INDEX idx_vacancies_city ON vacancies(city);
 CREATE INDEX idx_applications_vacancy_id ON applications(vacancy_id);
 CREATE INDEX idx_applications_freelancer_telegram_id ON applications(freelancer_telegram_id);
 
@@ -81,6 +111,7 @@ CREATE INDEX idx_applications_freelancer_telegram_id ON applications(freelancer_
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE freelancer_resumes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE owner_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE freelancer_shifts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vacancies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
 
@@ -92,6 +123,11 @@ CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.
 -- Freelancer resumes: Read own, update own
 CREATE POLICY "Freelancers can view own resume" ON freelancer_resumes FOR SELECT USING (true);
 CREATE POLICY "Freelancers can update own resume" ON freelancer_resumes FOR UPDATE USING (true);
+
+-- Freelancer shifts: Read all, create own, update own
+CREATE POLICY "Everyone can view shifts" ON freelancer_shifts FOR SELECT USING (true);
+CREATE POLICY "Freelancers can create shifts" ON freelancer_shifts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Freelancers can update own shifts" ON freelancer_shifts FOR UPDATE USING (true);
 
 -- Vacancies: Owners can create/read/update their own
 CREATE POLICY "Owners can view vacancies" ON vacancies FOR SELECT USING (true);

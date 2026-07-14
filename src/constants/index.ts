@@ -69,8 +69,12 @@ export const API_ENDPOINTS = {
   SEARCH_FREELANCERS: 'search-freelancers',
   LIST_VACANCIES: 'list-vacancies',
   FREELANCER_RESUMES: 'freelancer-resumes',
+  FREELANCER_SHIFTS: 'freelancer-shifts',
+  OWNER_VACANCIES: 'owner-vacancies',
+  APPLICATIONS: 'applications',
   TG_AUTH: 'tg-auth',
   TG_REGISTER: 'tg-register',
+  UPDATE_PROFILE: 'update-profile',
 };
 
 // Error Messages

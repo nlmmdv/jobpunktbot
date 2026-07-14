@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { type, city } = await req.json();
+    const { type, city, marketplaces, limit = 20, offset = 0 } = await req.json();
 
     if (!type || !["temporary", "permanent"].includes(type)) {
       return jsonResponse({ success: false, error: "Invalid type" }, 400);
@@ -23,13 +23,20 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     let query = supabase
-      .from("owner_vacancies")
+      .from("vacancies")
       .select("*")
       .eq("type", type)
-      .eq("status", "active");
+      .eq("status", "open")
+      .range(offset, offset + limit - 1)
+      .order("created_at", { ascending: false });
 
     if (city && city !== "Все") {
       query = query.eq("city", city);
+    }
+
+    if (marketplaces && marketplaces.length > 0) {
+      // Filter vacancies that have at least one of the selected marketplaces
+      query = query.contains("marketplaces", marketplaces);
     }
 
     const { data: vacancies, error } = await query;

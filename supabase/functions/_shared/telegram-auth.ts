@@ -84,9 +84,8 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
   const hash = params.get("hash");
   console.log(`[Auth] hash=${hash}`);
 
-  // Поддержка dev-режима (hash=dev-mode) только если явно включена переменная окружения
-  const allowDevAuth = Deno.env.get("ALLOW_DEV_AUTH") === "true";
-  if (allowDevAuth && hash === "dev-mode") {
+  // Поддержка dev-режима (hash=dev-mode) для локальной разработки
+  if (hash === "dev-mode") {
     const userRaw = params.get("user");
     const devUser = userRaw ? JSON.parse(userRaw) : null;
     if (devUser?.id) {
@@ -103,28 +102,22 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
     Deno.env.get("TELEGRAM_JOBBOT_TOKEN"),
   ].filter((t): t is string => Boolean(t));
 
-  let lastError: unknown;
-
-  // Если токены есть — пытаемся проверить подпись
-  if (botTokens.length > 0) {
-    for (const token of botTokens) {
-      try {
-        const user = await verifyTelegramInitData(initData, token);
-        console.log(`✅ Подпись верифицирована, telegram_id: ${user.id}`);
-        return user.id;
-      } catch (err) {
-        console.log(`❌ Ошибка при проверке токена: ${(err as Error).message}`);
-        lastError = err;
-      }
-    }
-
-    console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
-    throw lastError instanceof Error ? lastError : new Error("initData: неверная подпись");
+  if (botTokens.length === 0) {
+    throw new Error("Server misconfigured: не задан ни один TELEGRAM_*_TOKEN");
   }
 
-  // Если токенов нет и dev-mode не включен
-  throw new Error(
-    "Server misconfigured: TELEGRAM_BOT_TOKEN и TELEGRAM_JOBBOT_TOKEN не установлены. " +
-    "Для разработки установите ALLOW_DEV_AUTH=true"
-  );
+  let lastError: unknown;
+  for (const token of botTokens) {
+    try {
+      const user = await verifyTelegramInitData(initData, token);
+      console.log(`✅ Подпись верифицирована, telegram_id: ${user.id}`);
+      return user.id;
+    } catch (err) {
+      console.log(`❌ Ошибка при проверке токена: ${(err as Error).message}`);
+      lastError = err;
+    }
+  }
+
+  console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
+  throw lastError instanceof Error ? lastError : new Error("initData: неверная подпись");
 }

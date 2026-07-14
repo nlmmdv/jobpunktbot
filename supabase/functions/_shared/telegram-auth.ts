@@ -93,30 +93,20 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
     }
   }
 
-  // PRODUCTION: требуем валидную подпись одного из ботов
-  const botTokens = [
-    Deno.env.get("TELEGRAM_BOT_TOKEN"),
-    Deno.env.get("TELEGRAM_JOBBOT_TOKEN"),
-  ].filter((t): t is string => Boolean(t));
+  // PRODUCTION: требуем валидную подпись бота
+  const botToken = Deno.env.get("TELEGRAM_JOBBOT_TOKEN");
 
-  if (botTokens.length === 0) {
-    throw new Error(
-      "Server misconfigured: TELEGRAM_BOT_TOKEN и TELEGRAM_JOBBOT_TOKEN не установлены"
-    );
+  if (!botToken) {
+    throw new Error("Server misconfigured: TELEGRAM_JOBBOT_TOKEN не установлен");
   }
 
-  let lastError: unknown;
-  for (const token of botTokens) {
-    try {
-      const user = await verifyTelegramInitData(initData, token);
-      console.log(`✅ Подпись верифицирована, telegram_id: ${user.id}`);
-      return user.id;
-    } catch (err) {
-      console.log(`❌ Ошибка при проверке токена: ${(err as Error).message}`);
-      lastError = err;
-    }
+  try {
+    const user = await verifyTelegramInitData(initData, botToken);
+    console.log(`✅ Подпись верифицирована, telegram_id: ${user.id}`);
+    return user.id;
+  } catch (err) {
+    console.error("Signature verification failed:", err);
+    console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
+    throw new Error("initData: неверная подпись");
   }
-
-  console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
-  throw lastError instanceof Error ? lastError : new Error("initData: неверная подпись");
 }

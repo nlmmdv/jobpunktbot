@@ -1,69 +1,49 @@
-import { corsHeaders } from "../_shared/cors.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { requireTelegramId } from "../_shared/telegram-auth.ts";
 
 Deno.serve(async (req) => {
-  console.log("[tg-auth] START");
-
   if (req.method === "OPTIONS") {
-    console.log("[tg-auth] OPTIONS");
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    console.log("[tg-auth] Parsing body");
-    const body = await req.json().catch((e) => {
-      console.error("[tg-auth] JSON parse error:", e);
-      return null;
-    });
+    const body = await req.json();
 
-    console.log("[tg-auth] Body parsed, extracting initData");
-    const initData = body?.initData;
-
-    if (!initData) {
-      console.log("[tg-auth] No initData");
-      return new Response(JSON.stringify({ success: false, error: "No initData" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-
-    console.log("[tg-auth] initData length:", initData?.length);
-    const params = new URLSearchParams(initData);
-    const userRaw = params.get("user");
-    const hash = params.get("hash");
-
-    console.log(`[tg-auth] hash=${hash}, user present=${!!userRaw}`);
-
-    if (!userRaw) {
-      console.log("[tg-auth] No user in initData");
-      return new Response(JSON.stringify({ success: false, error: "No user", profile: null }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-
-    let user;
+    // Верифицируем Telegram initData и получаем telegram_id
+    let telegramId: number;
     try {
-      user = JSON.parse(userRaw);
-      console.log(`[tg-auth] User parsed: id=${user.id}, name=${user.first_name}`);
-    } catch (e) {
-      console.error("[tg-auth] Failed to parse user JSON:", e);
-      return new Response(JSON.stringify({ success: false, error: "Invalid user JSON", profile: null }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
+      telegramId = await requireTelegramId(body);
+    } catch (authErr) {
+      console.error("Auth error:", authErr);
+      return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
     }
 
-    // Возвращаем что пользователь не зарегистрирован (требует регистрации)
-    console.log("[tg-auth] User not registered, returning null profile");
-    return new Response(JSON.stringify({ success: true, profile: null }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase credentials");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Получаем профиль пользователя из БД
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("telegram_id", telegramId)
+      .single();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("Database error:", error);
+      throw error;
+    }
+
+    console.log(`Auth success for telegram_id=${telegramId}`);
+    return jsonResponse({ success: true, profile: profile || null });
   } catch (err) {
-    console.error("[tg-auth] ERROR:", err);
-    return new Response(JSON.stringify({ success: false, error: String(err) }), {
-      status: 500,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    console.error("Error:", err);
+    return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }
 });

@@ -71,8 +71,8 @@ export async function verifyTelegramInitData(
 
 /**
  * Достаёт проверенный telegramId вызывающего из initData.
- * - При hash=dev-mode: используется для локальной разработки (тестирование в браузере)
- * - При реальном hash: проверяется подпись с помощью TELEGRAM_BOT_TOKEN или TELEGRAM_JOBBOT_TOKEN
+ * ВАЖНО: Требует TELEGRAM_BOT_TOKEN или TELEGRAM_JOBBOT_TOKEN для верификации подписи.
+ * Без проверки подписи возможна подделка initData (IDOR).
  */
 export async function requireTelegramId(body: { initData?: string }): Promise<number> {
   const initData = body.initData;
@@ -82,39 +82,41 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
 
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
-  console.log(`[Auth] hash=${hash}`);
 
-  // Попытка проверить подпись если есть токены
+  // DEV-MODE: поддерживаем hash=dev-mode для локальной разработки
+  if (hash === "dev-mode") {
+    const userRaw = params.get("user");
+    const devUser = userRaw ? JSON.parse(userRaw) : null;
+    if (devUser?.id) {
+      console.log(`[Auth] Dev-mode: user_id=${devUser.id}`);
+      return Number(devUser.id);
+    }
+  }
+
+  // PRODUCTION: требуем валидную подпись одного из ботов
   const botTokens = [
     Deno.env.get("TELEGRAM_BOT_TOKEN"),
     Deno.env.get("TELEGRAM_JOBBOT_TOKEN"),
   ].filter((t): t is string => Boolean(t));
 
-  if (botTokens.length > 0) {
-    for (const token of botTokens) {
-      try {
-        const user = await verifyTelegramInitData(initData, token);
-        console.log(`✅ Подпись верифицирована, telegram_id: ${user.id}`);
-        return user.id;
-      } catch (err) {
-        console.log(`❌ Ошибка при проверке токена: ${(err as Error).message}`);
-      }
-    }
+  if (botTokens.length === 0) {
+    throw new Error(
+      "Server misconfigured: TELEGRAM_BOT_TOKEN и TELEGRAM_JOBBOT_TOKEN не установлены"
+    );
   }
 
-  // Fallback: используем user из initData напрямую (если токены не установлены или не работают)
-  const userRaw = params.get("user");
-  if (userRaw) {
+  let lastError: unknown;
+  for (const token of botTokens) {
     try {
-      const user = JSON.parse(userRaw);
-      if (user?.id) {
-        console.warn(`[Auth] Using user_id=${user.id} from initData (signature not verified)`);
-        return Number(user.id);
-      }
-    } catch (e) {
-      console.error("Failed to parse user:", e);
+      const user = await verifyTelegramInitData(initData, token);
+      console.log(`✅ Подпись верифицирована, telegram_id: ${user.id}`);
+      return user.id;
+    } catch (err) {
+      console.log(`❌ Ошибка при проверке токена: ${(err as Error).message}`);
+      lastError = err;
     }
   }
 
-  throw new Error("initData: unable to extract telegram_id");
+  console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
+  throw lastError instanceof Error ? lastError : new Error("initData: неверная подпись");
 }

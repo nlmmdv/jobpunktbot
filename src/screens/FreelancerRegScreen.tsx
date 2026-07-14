@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { callFunction, ApiError } from '../lib/api';
 import { Button, Input, Select, Section, Cell, Title, Text } from '@telegram-apps/telegram-ui';
+import { phoneMask } from '../lib/utils';
+import { CITIES_LIST, COLORS } from '../constants';
 
 declare global {
   interface Window {
@@ -13,22 +15,6 @@ interface FreelancerRegScreenProps {
   onBack: () => void;
 }
 
-const phoneMask = (value: string) => {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 0) return '';
-  if (digits === '8') return '+7';
-
-  const limited = digits.slice(0, 11);
-  if (limited.startsWith('8')) {
-    const rest = limited.slice(1);
-    return '+7' + rest;
-  }
-  if (limited.startsWith('7')) {
-    return '+' + limited;
-  }
-  return '+7' + limited;
-};
-
 export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
   const { refreshAuth } = useAuth();
   const [telegramId, setTelegramId] = useState<number | null>(null);
@@ -36,9 +22,10 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
   const [phone, setPhone] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [city, setCity] = useState('Москва');
+  const [city, setCity] = useState(CITIES_LIST[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const handleRegisterRef = useRef<() => Promise<void>>(async () => {});
 
   const validateForm = (): boolean => {
     if (!firstName.trim()) {
@@ -90,6 +77,10 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
   };
 
   useEffect(() => {
+    handleRegisterRef.current = handleRegister;
+  });
+
+  useEffect(() => {
     const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
     if (user) {
       setTelegramId(user.id);
@@ -113,7 +104,7 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
       <Button
         size="s"
         onClick={onBack}
-        style={{ color: '#6D28D9', marginBottom: '16px', background: 'none', border: 'none' }}
+        style={{ color: COLORS.primaryFreelancer, marginBottom: '16px', background: 'none', border: 'none' }}
       >
         ← Назад
       </Button>
@@ -162,13 +153,15 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
           onChange={(e) => setCity(e.target.value)}
           header="Город"
         >
-          <option>Москва</option>
-          <option>Санкт-Петербург</option>
-          <option>Другое</option>
+          {CITIES_LIST.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </Select>
       </Section>
 
-      {error && <Text style={{ color: '#DC2626', marginBottom: '12px', padding: '12px' }}>{error}</Text>}
+      {error && <Text style={{ color: COLORS.error, marginBottom: '12px', padding: '12px' }}>{error}</Text>}
 
       <Section>
         <Button

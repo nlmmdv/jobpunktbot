@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import { useAuth } from './contexts/AuthContext';
+import { Loading } from './components/Loading';
 import { WelcomeScreen } from './screens/WelcomeScreen';
 import { RegistrationScreen } from './screens/RegistrationScreen';
-import { FreelancerRegScreen } from './screens/FreelancerRegScreen';
-import { OwnerRegScreen } from './screens/OwnerRegScreen';
-import { FreelancerMainScreen } from './screens/FreelancerMainScreen';
-import { OwnerMainScreen } from './screens/OwnerMainScreen';
+
+// Lazy load registration screens
+const FreelancerRegScreen = lazy(() =>
+  import('./screens/FreelancerRegScreen').then((m) => ({ default: m.FreelancerRegScreen }))
+);
+const OwnerRegScreen = lazy(() =>
+  import('./screens/OwnerRegScreen').then((m) => ({ default: m.OwnerRegScreen }))
+);
+
+// Lazy load main screens
+const FreelancerMainScreen = lazy(() =>
+  import('./screens/FreelancerMainScreen').then((m) => ({ default: m.FreelancerMainScreen }))
+);
+const OwnerMainScreen = lazy(() =>
+  import('./screens/OwnerMainScreen').then((m) => ({ default: m.OwnerMainScreen }))
+);
 
 type RegistrationStep = 'landing' | 'registration' | 'freelancer_reg' | 'owner_reg';
 
@@ -35,23 +48,24 @@ function App() {
 
   // Loading state
   if (state === 'loading') {
-    return (
-      <div className="min-h-screen bg-white text-text-primary flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-freelancer mx-auto mb-4"></div>
-          <p className="text-text-hint">Загрузка...</p>
-        </div>
-      </div>
-    );
+    return <Loading fullscreen message="Загрузка..." />;
   }
 
   // Authenticated state
   if (state === 'freelancer') {
-    return <FreelancerMainScreen />;
+    return (
+      <Suspense fallback={<Loading fullscreen message="Загрузка приложения..." />}>
+        <FreelancerMainScreen />
+      </Suspense>
+    );
   }
 
   if (state === 'owner') {
-    return <OwnerMainScreen />;
+    return (
+      <Suspense fallback={<Loading fullscreen message="Загрузка приложения..." />}>
+        <OwnerMainScreen />
+      </Suspense>
+    );
   }
 
   // Registration flow for new users
@@ -66,17 +80,17 @@ function App() {
 
     if (regStep === 'freelancer_reg') {
       return (
-        <FreelancerRegScreen
-          onBack={handleBackToRegistration}
-        />
+        <Suspense fallback={<Loading message="Загрузка..." />}>
+          <FreelancerRegScreen onBack={handleBackToRegistration} />
+        </Suspense>
       );
     }
 
     if (regStep === 'owner_reg') {
       return (
-        <OwnerRegScreen
-          onBack={handleBackToRegistration}
-        />
+        <Suspense fallback={<Loading message="Загрузка..." />}>
+          <OwnerRegScreen onBack={handleBackToRegistration} />
+        </Suspense>
       );
     }
   }

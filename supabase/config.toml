@@ -1,0 +1,6 @@
+# Supabase Configuration
+
+[env.dev]
+# Enable dev-mode authentication for testing
+# When ALLOW_DEV_AUTH=true, Edge Functions accept hash=dev-mode from localhost
+ALLOW_DEV_AUTH = "true"

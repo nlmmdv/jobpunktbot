@@ -17,6 +17,7 @@ Deno.serve(async (req) => {
     try {
       userId = await requireTelegramId(body);
     } catch (authErr) {
+      console.error(`[freelancer-resumes] Auth error: ${(authErr as Error).message}`);
       return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
     }
 

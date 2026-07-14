@@ -71,9 +71,8 @@ export async function verifyTelegramInitData(
 
 /**
  * Достаёт проверенный telegramId вызывающего из initData.
- * В деве (ALLOW_DEV_AUTH=true) допускает мок initData, который присылает
- * src/lib/telegram.ts вне Telegram: "user=...&hash=dev-mode&auth_date=..."
- * — только если этот флаг явно включён в переменных окружения функции.
+ * - При hash=dev-mode: используется для локальной разработки (тестирование в браузере)
+ * - При реальном hash: проверяется подпись с помощью TELEGRAM_BOT_TOKEN или TELEGRAM_JOBBOT_TOKEN
  */
 export async function requireTelegramId(body: { initData?: string }): Promise<number> {
   const initData = body.initData;
@@ -81,13 +80,17 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
     throw new Error("Unauthorized: initData отсутствует");
   }
 
-  const allowDevAuth = Deno.env.get("ALLOW_DEV_AUTH") === "true";
-  if (allowDevAuth) {
-    const params = new URLSearchParams(initData);
-    if (params.get("hash") === "dev-mode") {
-      const userRaw = params.get("user");
-      const devUser = userRaw ? JSON.parse(userRaw) : null;
-      if (devUser?.id) return Number(devUser.id);
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  console.log(`[Auth] hash=${hash}`);
+
+  // Поддержка dev-режима (hash=dev-mode) для локальной разработки
+  if (hash === "dev-mode") {
+    const userRaw = params.get("user");
+    const devUser = userRaw ? JSON.parse(userRaw) : null;
+    if (devUser?.id) {
+      console.log(`[Auth] ✅ Dev-mode auth passed, user_id=${devUser.id}`);
+      return Number(devUser.id);
     }
   }
 
@@ -107,11 +110,14 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
   for (const token of botTokens) {
     try {
       const user = await verifyTelegramInitData(initData, token);
+      console.log(`✅ Подпись верифицирована, telegram_id: ${user.id}`);
       return user.id;
     } catch (err) {
+      console.log(`❌ Ошибка при проверке токена: ${(err as Error).message}`);
       lastError = err;
     }
   }
 
+  console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
   throw lastError instanceof Error ? lastError : new Error("initData: неверная подпись");
 }

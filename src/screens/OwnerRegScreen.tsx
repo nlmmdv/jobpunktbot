@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { callFunction, ApiError } from '../lib/api';
 import { Button, Input, Select, Section, Cell, Title, Text } from '@telegram-apps/telegram-ui';
+import { phoneMask } from '../lib/utils';
+import { COLORS } from '../constants';
 
 declare global {
   interface Window {
@@ -12,22 +14,6 @@ declare global {
 interface OwnerRegScreenProps {
   onBack: () => void;
 }
-
-const phoneMask = (value: string) => {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 0) return '';
-  if (digits === '8') return '+7';
-
-  const limited = digits.slice(0, 11);
-  if (limited.startsWith('8')) {
-    const rest = limited.slice(1);
-    return '+7' + rest;
-  }
-  if (limited.startsWith('7')) {
-    return '+' + limited;
-  }
-  return '+7' + limited;
-};
 
 export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
   const { refreshAuth } = useAuth();
@@ -119,7 +105,7 @@ export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
       <Button
         size="s"
         onClick={onBack}
-        style={{ color: '#2563EB', marginBottom: '16px', background: 'none', border: 'none' }}
+        style={{ color: COLORS.primaryOwner, marginBottom: '16px', background: 'none', border: 'none' }}
       >
         ← Назад
       </Button>
@@ -184,7 +170,7 @@ export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
         </Select>
       </Section>
 
-      {error && <Text style={{ color: '#DC2626', marginBottom: '12px', padding: '12px' }}>{error}</Text>}
+      {error && <Text style={{ color: COLORS.error, marginBottom: '12px', padding: '12px' }}>{error}</Text>}
 
       <Section>
         <Button

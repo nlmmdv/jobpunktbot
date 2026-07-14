@@ -108,7 +108,7 @@ export async function callFunction<T = any>(
         );
       }
 
-      if (!response.ok || data?.success === false || data?.error) {
+      if (!response.ok || data?.success === false) {
         const errorMsg = data?.error || data?.details || `HTTP ${response.status}`;
         console.error(`[API] ${name} error:`, { status: response.status, error: errorMsg, data });
         throw new ApiError(errorMsg, 'API_ERROR', response.status);

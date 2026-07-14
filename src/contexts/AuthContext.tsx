@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { callFunction, ApiError } from '../lib/api';
-import { getInitData } from '../lib/telegram';
+import { getInitData, waitForTelegramReady } from '../lib/telegram';
 
 export type AuthState = 'loading' | 'no_profile' | 'freelancer' | 'owner';
 
@@ -31,20 +31,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
 
   const refreshAuth = async () => {
+    setError(null);
+    setState('loading');
+
     try {
-      if (!getInitData()) {
-        console.log('No initData found, user not authenticated');
+      await waitForTelegramReady();
+
+      const initData = getInitData();
+      if (!initData) {
+        console.log('No initData found, showing welcome screen');
         setState('no_profile');
         return;
       }
 
       console.log('Refreshing auth...');
 
-      const data = await callFunction<{ profile: Profile | null }>('tg-auth', {});
+      const data = await callFunction<{ profile: Profile | null }>(
+        'tg-auth',
+        {},
+        { retries: 0, timeout: 8000 }
+      );
       const authProfile = data.profile;
 
       if (!authProfile) {
         console.log('No profile found, user needs to register');
+        setProfile(null);
         setState('no_profile');
         return;
       }
@@ -58,6 +69,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Auth refresh error:', err);
       setError(err instanceof ApiError ? err.message : 'Unknown error');
+      setProfile(null);
+      // Показываем welcome даже при ошибке auth — пользователь может зарегистрироваться
       setState('no_profile');
     }
   };

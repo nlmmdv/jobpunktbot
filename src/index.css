@@ -11,6 +11,17 @@
 }
 
 :root {
+  /* Telegram theme fallbacks (до applyTelegramTheme) */
+  --tg-theme-bg-color: #ffffff;
+  --tg-theme-text-color: #17151F;
+  --tg-theme-hint-color: #6E6A7C;
+  --tg-theme-link-color: #6D28D9;
+  --tg-theme-button-color: #6D28D9;
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: #F7F6FB;
+  --tg-theme-section-bg-color: #ffffff;
+  --tg-theme-accent-text-color: #6D28D9;
+
   /* ПроПункт light theme — finalized palette */
   --color-bg-app: #ffffff;
   --color-text-primary: #17151F;

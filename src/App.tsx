@@ -23,7 +23,7 @@ const OwnerMainScreen = lazy(() =>
 type RegistrationStep = 'landing' | 'registration' | 'freelancer_reg' | 'owner_reg';
 
 function App() {
-  const { state } = useAuth();
+  const { state, error } = useAuth();
   const [regStep, setRegStep] = useState<RegistrationStep>('landing');
 
   const handleStartRegistration = () => {
@@ -71,7 +71,7 @@ function App() {
   // Registration flow for new users
   if (state === 'no_profile') {
     if (regStep === 'landing') {
-      return <WelcomeScreen onStart={handleStartRegistration} />;
+      return <WelcomeScreen onStart={handleStartRegistration} authError={error} />;
     }
 
     if (regStep === 'registration') {
@@ -95,7 +95,7 @@ function App() {
     }
   }
 
-  return null;
+  return <WelcomeScreen onStart={handleStartRegistration} authError={error} />;
 }
 
 export default App;

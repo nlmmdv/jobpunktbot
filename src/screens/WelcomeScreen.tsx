@@ -9,9 +9,10 @@ declare global {
 
 interface WelcomeScreenProps {
   onStart: () => void;
+  authError?: string | null;
 }
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, authError }) => {
   useEffect(() => {
     try {
       if (window.Telegram?.WebApp) {
@@ -61,12 +62,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
         ПроПункт
       </Title>
       <Text style={{
-        marginBottom: '48px',
+        marginBottom: authError ? '16px' : '48px',
         color: '#6E6A7C',
         fontSize: '15px',
       }}>
         Биржа труда для ПВЗ
       </Text>
+      {authError && (
+        <Text style={{
+          marginBottom: '24px',
+          color: '#DC2626',
+          fontSize: '13px',
+          maxWidth: '320px',
+          lineHeight: 1.4,
+        }}>
+          {authError}
+        </Text>
+      )}
       <Button
         size="l"
         onClick={onStart}

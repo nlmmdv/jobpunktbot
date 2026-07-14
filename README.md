@@ -1,83 +1,120 @@
-# ПроПункт - Telegram Mini App для биржи труда ПВЗ
+# ПроПункт Биржа — Telegram Mini App
 
-Telegram Mini App для управления работниками и заказами на ПВЗ (пункты выдачи).
+Платформа для поиска работы и подработки в сфере курьерских услуг (ПВЗ).
+
+## Стек
+
+- **Frontend:** React 19, TypeScript, Vite, Telegram UI
+- **Backend:** Supabase (PostgreSQL + Edge Functions)
+- **Runtime:** Node.js 20+
+- **Testing:** Vitest
 
 ## Структура проекта
 
 ```
-src/
-├── lib/
-│   ├── supabase.ts          # Supabase клиент с Punktir Pro credentials
-│   └── telegram.ts          # Telegram WebApp SDK wrapper
-├── contexts/
-│   └── AuthContext.tsx      # Управление авторизацией и ролями
-├── screens/
-│   ├── RegistrationScreen.tsx    # Экран регистрации (заглушка)
-│   ├── FreelancerMainScreen.tsx  # Главный экран фрилансера
-│   └── OwnerMainScreen.tsx       # Главный экран владельца ПВЗ
-├── App.tsx                  # Роутинг между экранами
-└── main.tsx                 # Entry point с AuthProvider
+├── src/
+│   ├── screens/              # Экраны приложения
+│   ├── components/           # Переиспользуемые компоненты
+│   ├── contexts/             # React контексты (Auth)
+│   ├── lib/                  # Утилиты (API, кэш, телеграм)
+│   ├── constants/            # Централизованные константы
+│   ├── data/                 # Статические данные
+│   └── main.tsx              # Точка входа
+├── supabase/
+│   ├── functions/            # Edge Functions
+│   │   ├── tg-auth/         # Проверка аутентификации
+│   │   ├── tg-register/     # Регистрация пользователя
+│   │   └── _shared/         # Общие утилиты
+│   └── migrations/           # SQL миграции БД
+├── __tests__/                # Unit тесты
+└── .env                      # Переменные окружения
 ```
 
-## Как работает авторизация
+## Быстрый старт
 
-1. **На запуске** приложение получает Telegram user из `WebApp.initDataUnsafe.user`
-2. **Поиск профиля** в таблице `profiles` по `telegram_id`
-3. **Если профиля нет** → показать экран регистрации
-4. **Если профиль найден** → загрузить данные и определить роль:
-   - `owner` или `admin` → режим владельца ПВЗ
-   - `freelancer` → режим фрилансера
-
-## Технологии
-
-- **React 18** + TypeScript
-- **Vite** - сборка
-- **Tailwind CSS** - стили
-- **Supabase** - бэкенд (API + БД)
-- **Telegram WebApp SDK** - интеграция с Telegram
-- **@twa-dev/sdk** - TypeScript типы для SDK
-
-## Стили и тема
-
-- **Тёмная тема** по умолчанию
-- **CSS переменные Telegram**: автоматически подхватываются из `--tg-theme-*`
-- **Акцент**: фиолетовый `#6D28D9`
-- **Tailwind утилиты**: `bg-tg-bg`, `text-tg-text`, `text-tg-hint` и т.д.
-
-## Развёртывание
-
-### Локально
-
+### Установка зависимостей
 ```bash
 npm install
+```
+
+### Локальная разработка
+```bash
 npm run dev
 ```
+Откроется http://localhost:5173
 
-### На production
-
+### Сборка для production
 ```bash
 npm run build
-# Залить содержимое /dist на веб-сервер
-# Настроить URL в Telegram Bot API
 ```
 
-## Следующие шаги
+### Тестирование
+```bash
+npm test           # Запустить тесты
+npm run test:ui    # Vitest UI
+npm run test:coverage  # Отчёт покрытия
+```
 
-1. **Реализовать RegistrationScreen**:
-   - Форма с именем, контактами, выбором роли
-   - Сохранение нового профиля в БД
+### Линтинг
+```bash
+npm run lint
+```
 
-2. **Наполнить FreelancerMainScreen**:
-   - Список доступных заказов
-   - Профиль фрилансера
-   - История выполненных заказов
+## Конфигурация
 
-3. **Наполнить OwnerMainScreen**:
-   - Управление заказами
-   - Список работников
-   - Статистика
+### .env файл
+```env
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=...
+VITE_SUPABASE_FUNCTIONS_URL=https://xxx.supabase.co/functions/v1
+```
 
-4. **Добавить навигацию** (Bottom Tab Bar):
-   - Главная
-   - Профиль
-   - История / Статистика
+### Telegram Bot
+Приложение использует один Telegram Bot (jobbot). Нужно установить в Supabase:
+```
+TELEGRAM_JOBBOT_TOKEN=<bot_token_от_@BotFather>
+```
+
+## API Functions
+
+### tg-auth
+Проверяет Telegram initData и возвращает профиль пользователя.
+
+### tg-register
+Создает новый профиль пользователя.
+
+## Безопасность
+
+- ✅ Все запросы к Edge Functions требуют валидную Telegram подпись
+- ✅ Используется HMAC-SHA256 для верификации initData
+- ✅ RLS (Row Level Security) в PostgreSQL
+- ✅ Защита от IDOR атак
+
+## Database Schema
+
+Основные таблицы:
+- `profiles` — пользователи
+- `freelancer_resumes` — резюме фрилансеров
+- `owner_profiles` — профили владельцев ПВЗ
+- `vacancies` — вакансии/подработка
+- `applications` — заявки на вакансии
+
+Миграции: `supabase/migrations/001_init_schema.sql`
+
+## Деплой
+
+### Frontend
+```bash
+npm run build
+# Deploy dist/ folder на Vercel/Netlify
+```
+
+### Edge Functions
+```bash
+supabase functions deploy
+```
+
+### Database
+```bash
+supabase db push
+```

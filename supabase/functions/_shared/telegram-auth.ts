@@ -82,7 +82,7 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
 
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
-  console.log(`[Auth] hash=${hash}`);
+  console.log(`[Auth] Verifying hash=${hash}`);
 
   // Поддержка dev-режима (hash=dev-mode) для локальной разработки
   if (hash === "dev-mode") {

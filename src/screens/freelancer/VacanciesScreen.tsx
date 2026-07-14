@@ -62,8 +62,19 @@ export const VacanciesScreen = () => {
     }
   };
 
-  const handleApply = () => {
-    alert('Функция отклика в разработке');
+  const handleApply = async (vacancyId: string) => {
+    try {
+      await callFunction('applications', {
+        action: 'create',
+        vacancy_id: vacancyId,
+      });
+      alert('✅ Отклик отправлен!');
+      // Reload vacancies to update UI
+      loadVacancies();
+    } catch (err) {
+      console.error('Failed to apply:', err);
+      alert('❌ Ошибка при отправке отклика');
+    }
   };
 
   if (loading) {
@@ -157,7 +168,7 @@ export const VacanciesScreen = () => {
               </div>
 
               <button
-                onClick={handleApply}
+                onClick={() => handleApply(vacancy.id)}
                 style={{
                   width: '100%',
                   padding: 10,

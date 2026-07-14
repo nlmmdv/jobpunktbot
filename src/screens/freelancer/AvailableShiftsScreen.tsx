@@ -313,6 +313,20 @@ export const AvailableShiftsScreen = () => {
     station.name.toLowerCase().includes(metroSearch.toLowerCase())
   );
 
+  const handleApply = async (shiftId: string) => {
+    try {
+      await callFunction('applications', {
+        action: 'create',
+        vacancy_id: shiftId,
+      });
+      alert('✅ Отклик отправлен!');
+      loadVacancies();
+    } catch (err) {
+      console.error('Failed to apply:', err);
+      alert('❌ Ошибка при отправке отклика');
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: '20px 18px', maxWidth: 400, margin: '0 auto', background: '#fff', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif' }}>
@@ -492,7 +506,7 @@ export const AvailableShiftsScreen = () => {
               </div>
 
               <button
-                onClick={() => alert('Функция отклика в разработке')}
+                onClick={() => handleApply(vacancy.id)}
                 style={{
                   width: '100%',
                   padding: 9,

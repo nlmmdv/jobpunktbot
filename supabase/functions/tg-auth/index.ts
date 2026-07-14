@@ -8,6 +8,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log("[tg-auth] Processing request");
     const body = await req.json();
 
     // Получаем telegram_id из подписанного initData

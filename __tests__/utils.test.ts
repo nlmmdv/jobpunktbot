@@ -1,4 +1,14 @@
-import { phoneMask, isValidPhone, debounce, throttle } from '../src/lib/utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  phoneMask,
+  isValidPhone,
+  isNotEmpty,
+  formatTime,
+  getInitials,
+  toTitleCase,
+  debounce,
+  throttle,
+} from '../src/lib/utils';
 
 describe('Utils', () => {
   describe('phoneMask', () => {
@@ -41,11 +51,46 @@ describe('Utils', () => {
     });
   });
 
+  describe('isNotEmpty', () => {
+    it('is false for blank/whitespace', () => {
+      expect(isNotEmpty('')).toBe(false);
+      expect(isNotEmpty('   ')).toBe(false);
+    });
+
+    it('is true for non-blank', () => {
+      expect(isNotEmpty(' a ')).toBe(true);
+    });
+  });
+
+  describe('formatTime', () => {
+    it('pads hours and minutes', () => {
+      expect(formatTime(9, 5)).toBe('09:05');
+      expect(formatTime(14, 30)).toBe('14:30');
+    });
+  });
+
+  describe('getInitials', () => {
+    it('builds initials from first and last name', () => {
+      expect(getInitials('иван', 'петров')).toBe('ИП');
+    });
+
+    it('works without last name', () => {
+      expect(getInitials('анна')).toBe('А');
+    });
+  });
+
+  describe('toTitleCase', () => {
+    it('capitalizes each word', () => {
+      expect(toTitleCase('иван ПЕТРОВ')).toBe('Иван Петров');
+    });
+  });
+
   describe('debounce', () => {
-    jest.useFakeTimers();
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
 
     it('should debounce function calls', () => {
-      const fn = jest.fn();
+      const fn = vi.fn();
       const debounced = debounce(fn, 300);
 
       debounced();
@@ -54,16 +99,17 @@ describe('Utils', () => {
 
       expect(fn).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(300);
+      vi.advanceTimersByTime(300);
       expect(fn).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('throttle', () => {
-    jest.useFakeTimers();
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
 
     it('should throttle function calls', () => {
-      const fn = jest.fn();
+      const fn = vi.fn();
       const throttled = throttle(fn, 1000);
 
       throttled();
@@ -72,7 +118,7 @@ describe('Utils', () => {
 
       expect(fn).toHaveBeenCalledTimes(1);
 
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
       expect(fn).toHaveBeenCalledTimes(1);
     });
   });

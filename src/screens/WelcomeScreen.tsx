@@ -79,8 +79,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, authError
           {authError}
         </Text>
       )}
-      <Button
-        size="l"
+      <button
         onClick={onStart}
         style={{
           width: '100%',
@@ -97,7 +96,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, authError
         }}
       >
         Начать
-      </Button>
+      </button>
     </div>
   );
 };

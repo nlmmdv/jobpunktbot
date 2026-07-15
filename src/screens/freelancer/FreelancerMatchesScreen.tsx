@@ -153,7 +153,6 @@ export const FreelancerMatchesScreen = () => {
       {/* Matches List */}
       {displayMatches.map((match) => {
         const statusBadge = getStatusBadge(match.status);
-        const ownerName = match.profiles ? `${match.profiles.first_name} ${match.profiles.last_name || ''}`.trim() : 'Unknown';
         const tgUsername = match.profiles?.telegram_username;
 
         return (

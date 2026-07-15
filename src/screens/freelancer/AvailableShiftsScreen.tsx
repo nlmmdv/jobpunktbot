@@ -215,6 +215,7 @@ export const AvailableShiftsScreen = () => {
     if (profile?.telegram_id) {
       loadResume();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
   useEffect(() => {
@@ -223,6 +224,7 @@ export const AvailableShiftsScreen = () => {
     }
     // selectedMetro тоже используется внутри loadVacancies для фильтрации —
     // без него в зависимостях выбор станции метро не перезапускал загрузку.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMarketplaces, selectedMetro, minDate, minTime, maxTime]);
 
   const loadResume = async () => {

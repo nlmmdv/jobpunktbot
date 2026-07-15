@@ -30,6 +30,7 @@ export const VacanciesScreen = () => {
     if (profile?.telegram_id) {
       loadResume();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
   const loadResume = async () => {

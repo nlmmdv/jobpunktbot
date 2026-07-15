@@ -46,7 +46,9 @@ export const OwnerMatchesScreen = () => {
   };
 
   useEffect(() => {
+    // Намеренно перезагружаем только при смене пользователя (telegram_id).
     loadMatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.telegram_id]);
 
   const handleAccept = async (matchId: string) => {

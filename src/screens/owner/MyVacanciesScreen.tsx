@@ -47,7 +47,9 @@ export const MyVacanciesScreen = () => {
   const [showMetroSelector, setShowMetroSelector] = useState(false);
 
   useEffect(() => {
+    // Загружаем один раз при монтировании (профиль уже готов к этому экрану).
     loadVacancies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadVacancies = async () => {

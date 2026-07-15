@@ -42,6 +42,7 @@ export const SearchEmployeesScreen = () => {
 
   useEffect(() => {
     loadFreelancers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCity, selectedMarketplaces, selectedMetro]);
 
   const loadFreelancers = async () => {

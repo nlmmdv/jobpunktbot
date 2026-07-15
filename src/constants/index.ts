@@ -72,6 +72,7 @@ export const API_ENDPOINTS = {
   FREELANCER_SHIFTS: 'freelancer-shifts',
   OWNER_VACANCIES: 'owner-vacancies',
   APPLICATIONS: 'applications',
+  JOB_MATCHES: 'job-matches',
   TG_AUTH: 'tg-auth',
   TG_REGISTER: 'tg-register',
   UPDATE_PROFILE: 'update-profile',

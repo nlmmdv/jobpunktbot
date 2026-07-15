@@ -15,6 +15,7 @@ interface Vacancy {
   marketplaces: string[];
   payment: number;
   metro_stations: string[];
+  owner_telegram_id?: number;
 }
 
 interface Resume {
@@ -313,11 +314,14 @@ export const AvailableShiftsScreen = () => {
     station.name.toLowerCase().includes(metroSearch.toLowerCase())
   );
 
-  const handleApply = async (shiftId: string) => {
+  const handleApply = async (shiftId: string, ownerTelegramId: number) => {
     try {
-      await callFunction('applications', {
+      await callFunction('job-matches', {
         action: 'create',
         vacancy_id: shiftId,
+        owner_telegram_id: ownerTelegramId,
+        freelancer_telegram_id: profile?.telegram_id,
+        initiated_by: 'freelancer',
       });
       alert('✅ Отклик отправлен!');
       loadVacancies();
@@ -506,7 +510,7 @@ export const AvailableShiftsScreen = () => {
               </div>
 
               <button
-                onClick={() => handleApply(vacancy.id)}
+                onClick={() => handleApply(vacancy.id, vacancy.owner_telegram_id || 0)}
                 style={{
                   width: '100%',
                   padding: 9,

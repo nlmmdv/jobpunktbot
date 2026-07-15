@@ -3,10 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { FreelancerShiftsScreen } from './freelancer/FreelancerShiftsScreen';
 import { VacanciesScreen } from './freelancer/VacanciesScreen';
 import { AvailableShiftsScreen } from './freelancer/AvailableShiftsScreen';
+import { FreelancerMatchesScreen } from './freelancer/FreelancerMatchesScreen';
 import { ProfileScreen } from './freelancer/ProfileScreen';
 import { BackButton } from '../components/MainMenuLayout';
 
-type Screen = 'menu' | 'shifts' | 'vacancies' | 'available' | 'profile';
+type Screen = 'menu' | 'shifts' | 'vacancies' | 'available' | 'matches' | 'profile';
 
 export const FreelancerMainScreen = () => {
   const { profile } = useAuth();
@@ -94,6 +95,30 @@ export const FreelancerMainScreen = () => {
           </div>
 
           <div
+            onClick={() => setScreen('matches')}
+            style={{
+              aspectRatio: '1',
+              borderRadius: 20,
+              background: '#F7F6FB',
+              border: '1px solid #ECEAF4',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              boxShadow: '0 2px 10px rgba(23,21,31,0.04)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s'
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = '')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
+          >
+            <span style={{ fontSize: 30 }}>📬</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#17151F' }}>Отклики</span>
+          </div>
+
+          <div
             onClick={() => setScreen('profile')}
             style={{
               aspectRatio: '1',
@@ -144,6 +169,15 @@ export const FreelancerMainScreen = () => {
       <div className="min-h-screen bg-white text-text-primary p-4 pb-24">
         <BackButton onClick={handleBack} variant="freelancer" />
         <AvailableShiftsScreen />
+      </div>
+    );
+  }
+
+  if (screen === 'matches') {
+    return (
+      <div className="min-h-screen bg-white text-text-primary p-4 pb-24">
+        <BackButton onClick={handleBack} variant="freelancer" />
+        <FreelancerMatchesScreen />
       </div>
     );
   }

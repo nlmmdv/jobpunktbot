@@ -16,6 +16,7 @@ interface Vacancy {
   payment: number;
   metro_stations: string[];
   schedule?: string;
+  owner_telegram_id?: number;
 }
 
 export const VacanciesScreen = () => {
@@ -62,14 +63,16 @@ export const VacanciesScreen = () => {
     }
   };
 
-  const handleApply = async (vacancyId: string) => {
+  const handleApply = async (vacancyId: string, ownerTelegramId: number) => {
     try {
-      await callFunction('applications', {
+      await callFunction('job-matches', {
         action: 'create',
         vacancy_id: vacancyId,
+        owner_telegram_id: ownerTelegramId,
+        freelancer_telegram_id: profile?.telegram_id,
+        initiated_by: 'freelancer',
       });
       alert('✅ Отклик отправлен!');
-      // Reload vacancies to update UI
       loadVacancies();
     } catch (err) {
       console.error('Failed to apply:', err);
@@ -168,7 +171,7 @@ export const VacanciesScreen = () => {
               </div>
 
               <button
-                onClick={() => handleApply(vacancy.id)}
+                onClick={() => handleApply(vacancy.id, vacancy.owner_telegram_id || 0)}
                 style={{
                   width: '100%',
                   padding: 10,

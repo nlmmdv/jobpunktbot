@@ -18,6 +18,13 @@ interface Freelancer {
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 const CITIES = ['Москва', 'Санкт-Петербург', 'Все'];
 
+interface Vacancy {
+  id: string;
+  title: string;
+  address: string;
+  payment: number;
+}
+
 export const SearchEmployeesScreen = () => {
   const [selectedCity, setSelectedCity] = useState('Москва');
   const [selectedMarketplaces, setSelectedMarketplaces] = useState<Set<string>>(new Set());
@@ -27,6 +34,9 @@ export const SearchEmployeesScreen = () => {
   const [freelancers, setFreelancers] = useState<Freelancer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [selectedFreelancer, setSelectedFreelancer] = useState<Freelancer | null>(null);
+  const [ownerVacancies, setOwnerVacancies] = useState<Vacancy[]>([]);
 
   const metroList = selectedCity === 'Санкт-Петербург' ? metroSPb : metroMoscow;
 
@@ -89,8 +99,37 @@ export const SearchEmployeesScreen = () => {
     station.name.toLowerCase().includes(metroSearch.toLowerCase())
   );
 
-  const handleOfferShift = () => {
-    alert('Функция в разработке');
+  const handleOfferShift = async (freelancer: Freelancer) => {
+    setSelectedFreelancer(freelancer);
+    try {
+      // Load owner's active vacancies
+      const data = await callFunction<{ vacancies: Vacancy[] }>('owner-vacancies', {
+        action: 'list',
+      });
+      setOwnerVacancies(data.vacancies?.filter((v: any) => v.status === 'active') || []);
+      setShowOfferModal(true);
+    } catch (err) {
+      console.error('Failed to load vacancies:', err);
+      alert('❌ Ошибка при загрузке вакансий');
+    }
+  };
+
+  const handleSelectVacancyForOffer = async (vacancyId: string, freelancerTelegramId: number, ownerTelegramId: number) => {
+    try {
+      await callFunction('job-matches', {
+        action: 'create',
+        vacancy_id: vacancyId,
+        owner_telegram_id: ownerTelegramId,
+        freelancer_telegram_id: freelancerTelegramId,
+        initiated_by: 'owner',
+      });
+      setShowOfferModal(false);
+      setSelectedFreelancer(null);
+      alert('✅ Предложение отправлено!');
+    } catch (err) {
+      console.error('Failed to send offer:', err);
+      alert('❌ Ошибка при отправке предложения');
+    }
   };
 
   return (
@@ -224,7 +263,7 @@ export const SearchEmployeesScreen = () => {
               )}
 
               <button
-                onClick={handleOfferShift}
+                onClick={() => handleOfferShift(freelancer)}
                 style={{
                   width: '100%',
                   padding: 10,
@@ -242,6 +281,89 @@ export const SearchEmployeesScreen = () => {
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Offer Modal */}
+      {showOfferModal && selectedFreelancer && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex',
+          alignItems: 'flex-end',
+          zIndex: 1000,
+        }} onClick={() => setShowOfferModal(false)}>
+          <div style={{
+            width: '100%',
+            background: '#fff',
+            borderRadius: '20px 20px 0 0',
+            padding: '20px 18px 30px',
+            maxHeight: '80vh',
+            overflow: 'auto',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#17151F', marginBottom: 16 }}>
+              Выберите вакансию для предложения
+            </div>
+            <div style={{ fontSize: 14, color: '#6E6A7C', marginBottom: 16 }}>
+              {selectedFreelancer.first_name} {selectedFreelancer.last_name}
+            </div>
+
+            {ownerVacancies.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#8B8798' }}>
+                📋 Нет активных вакансий для предложения
+              </div>
+            ) : (
+              ownerVacancies.map((vacancy) => (
+                <div
+                  key={vacancy.id}
+                  onClick={() => handleSelectVacancyForOffer(vacancy.id, parseInt(selectedFreelancer.id), 0)}
+                  style={{
+                    background: '#F5F8FE',
+                    border: '1px solid #E1EBFB',
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 10,
+                    cursor: 'pointer',
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#ECF3FF')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F5F8FE')}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#17151F', marginBottom: 6 }}>
+                    {vacancy.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6E6A7C', marginBottom: 4 }}>
+                    📍 {vacancy.address}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2563EB' }}>
+                    💰 {vacancy.payment}₽
+                  </div>
+                </div>
+              ))
+            )}
+
+            <button
+              onClick={() => setShowOfferModal(false)}
+              style={{
+                width: '100%',
+                padding: 14,
+                border: '1px solid #E1EBFB',
+                borderRadius: 12,
+                background: '#fff',
+                color: '#6E6A7C',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginTop: 16,
+              }}
+            >
+              Отмена
+            </button>
+          </div>
         </div>
       )}
     </div>

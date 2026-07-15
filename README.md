@@ -75,6 +75,17 @@ VITE_SUPABASE_FUNCTIONS_URL=https://xxx.supabase.co/functions/v1
 TELEGRAM_JOBBOT_TOKEN=<bot_token_от_@BotFather>
 ```
 
+### Локальная авторизация (dev-mode)
+Фронтенд в dev-режиме шлёт `hash=dev-mode` вместо реальной подписи Telegram.
+Чтобы edge-функции принимали её при локальной разработке, задай флаг **только локально**:
+```
+supabase functions serve --env-file supabase/functions/.env
+# где .env содержит: ALLOW_DEV_AUTH=true
+```
+⚠️ В продакшене `ALLOW_DEV_AUTH` **не задавать** — иначе любой сможет прислать
+`hash=dev-mode` с чужим `user.id` и обойти авторизацию. По умолчанию (флаг не задан)
+dev-mode отключён и требуется валидная подпись бота.
+
 ## API Functions
 
 ### tg-auth

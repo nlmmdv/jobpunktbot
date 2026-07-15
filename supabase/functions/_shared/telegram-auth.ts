@@ -83,8 +83,11 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
 
-  // DEV-MODE: поддерживаем hash=dev-mode для локальной разработки
-  if (hash === "dev-mode") {
+  // DEV-MODE: обходит проверку подписи, поэтому разрешён ТОЛЬКО при явном опте
+  // ALLOW_DEV_AUTH=true. В продакшене эта переменная не задаётся → ветка не срабатывает,
+  // и запрос уходит на настоящую проверку подписи ниже. Без этого гейта любой мог прислать
+  // hash=dev-mode с чужим user.id и обойти авторизацию (IDOR).
+  if (hash === "dev-mode" && Deno.env.get("ALLOW_DEV_AUTH") === "true") {
     const userRaw = params.get("user");
     const devUser = userRaw ? JSON.parse(userRaw) : null;
     if (devUser?.id) {

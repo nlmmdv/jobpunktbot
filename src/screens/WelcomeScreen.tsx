@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Button, Text, Title } from '@telegram-apps/telegram-ui';
+import { Text, Title } from '@telegram-apps/telegram-ui';
 
 declare global {
   interface Window {

@@ -100,7 +100,7 @@ export async function callFunction<T = any>(
       let data: any;
       try {
         data = await response.json();
-      } catch (parseError) {
+      } catch {
         throw new ApiError(
           `Ошибка при обработке ответа: HTTP ${response.status}`,
           'PARSE_ERROR',

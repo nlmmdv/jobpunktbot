@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { callFunction, ApiError } from '../lib/api';
-import { Button, Input, Select, Section, Cell, Title, Text } from '@telegram-apps/telegram-ui';
+import { Screen, ScreenHeader, Card, Button, TextField, SelectField, ErrorText } from '../components/ui';
 import { phoneMask } from '../lib/utils';
-import { CITIES_LIST, COLORS } from '../constants';
+import { CITIES_LIST } from '../constants';
 
 declare global {
   interface Window {
@@ -25,7 +25,6 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
   const [city, setCity] = useState(CITIES_LIST[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const handleRegisterRef = useRef<() => Promise<void>>(async () => {});
 
   const validateForm = (): boolean => {
     if (!firstName.trim()) {
@@ -79,10 +78,6 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
   };
 
   useEffect(() => {
-    handleRegisterRef.current = handleRegister;
-  });
-
-  useEffect(() => {
     const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
     if (user) {
       setTelegramId(user.id);
@@ -102,79 +97,63 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
   }, []);
 
   return (
-    <div style={{ padding: '16px 0' }}>
-      <Button
-        size="s"
-        onClick={onBack}
-        style={{ color: COLORS.primaryFreelancer, marginBottom: '16px', background: 'none', border: 'none' }}
-      >
-        ← Назад
+    <Screen>
+      <ScreenHeader
+        title="Регистрация сотрудника"
+        subtitle="Заполните свои данные"
+        variant="freelancer"
+        onBack={onBack}
+      />
+
+      <Card variant="freelancer" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{telegramId || 'Загрузка...'}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Telegram ID · Read-only</div>
+        <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>@{telegramUsername || '—'}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Username</div>
+      </Card>
+
+      <TextField
+        label="Телефон *"
+        type="tel"
+        placeholder="+7"
+        value={phone}
+        onChange={(e) => {
+          setPhone(phoneMask(e.target.value));
+          setError('');
+        }}
+      />
+      <TextField
+        label="Имя *"
+        placeholder="Иван"
+        value={firstName}
+        onChange={(e) => {
+          setFirstName(e.target.value);
+          setError('');
+        }}
+      />
+      <TextField
+        label="Фамилия *"
+        placeholder="Петров"
+        value={lastName}
+        onChange={(e) => {
+          setLastName(e.target.value);
+          setError('');
+        }}
+      />
+      <SelectField label="Город" value={city} onChange={(e) => setCity(e.target.value)}>
+        {CITIES_LIST.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </SelectField>
+
+      {error && <ErrorText>{error}</ErrorText>}
+
+      <Button onClick={handleRegister} disabled={loading} style={{ marginTop: 10 }}>
+        {loading ? 'Регистрация...' : 'Зарегистрироваться'}
       </Button>
-
-      <Title level="2" style={{ marginBottom: '4px' }}>Регистрация фрилансера</Title>
-      <Text style={{ marginBottom: '20px', color: 'var(--tg-theme-hint-color)' }}>Заполните свои данные</Text>
-
-      <Section>
-        <Cell subtitle="Read-only">{telegramId || 'Загрузка...'}</Cell>
-        <Cell subtitle="@Username">@{telegramUsername || '—'}</Cell>
-      </Section>
-
-      <Section header="Личные данные">
-        <Input
-          type="tel"
-          placeholder="+7"
-          value={phone}
-          onChange={(e) => {
-            setPhone(phoneMask(e.target.value));
-            setError('');
-          }}
-          header="Телефон *"
-        />
-        <Input
-          type="text"
-          placeholder="Иван"
-          value={firstName}
-          onChange={(e) => {
-            setFirstName(e.target.value);
-            setError('');
-          }}
-          header="Имя *"
-        />
-        <Input
-          type="text"
-          placeholder="Петров"
-          value={lastName}
-          onChange={(e) => {
-            setLastName(e.target.value);
-            setError('');
-          }}
-          header="Фамилия *"
-        />
-        <Select
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          header="Город"
-        >
-          {CITIES_LIST.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </Select>
-      </Section>
-
-      {error && <Text style={{ color: COLORS.error, marginBottom: '12px', padding: '12px' }}>{error}</Text>}
-
-      <Section>
-        <Button
-          size="l"
-          onClick={handleRegister}
-          disabled={loading}
-          style={{ width: '100%' }}
-        >
-          {loading ? 'Регистрация...' : 'Зарегистрироваться'}
-        </Button>
-      </Section>
-    </div>
+    </Screen>
   );
 };

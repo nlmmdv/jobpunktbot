@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { callFunction, ApiError } from '../lib/api';
-import { Button, Input, Select, Section, Cell, Title, Text } from '@telegram-apps/telegram-ui';
+import { Screen, ScreenHeader, Card, Button, TextField, SelectField, ErrorText } from '../components/ui';
 import { phoneMask } from '../lib/utils';
-import { COLORS } from '../constants';
+import { CITIES_LIST } from '../constants';
 
 declare global {
   interface Window {
@@ -23,7 +23,7 @@ export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [organizationName, setOrganizationName] = useState('');
-  const [city, setCity] = useState('Москва');
+  const [city, setCity] = useState(CITIES_LIST[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -101,87 +101,76 @@ export const OwnerRegScreen = ({ onBack }: OwnerRegScreenProps) => {
   }, []);
 
   return (
-    <div style={{ padding: '16px 0' }}>
-      <Button
-        size="s"
-        onClick={onBack}
-        style={{ color: COLORS.primaryOwner, marginBottom: '16px', background: 'none', border: 'none' }}
-      >
-        ← Назад
+    <Screen>
+      <ScreenHeader
+        title="Регистрация владельца ПВЗ"
+        subtitle="Заполните данные организации"
+        variant="owner"
+        onBack={onBack}
+      />
+
+      <Card variant="owner" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{telegramId || 'Загрузка...'}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Telegram ID · Read-only</div>
+        <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>@{telegramUsername || '—'}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Username</div>
+      </Card>
+
+      <TextField
+        label="Телефон *"
+        variant="owner"
+        type="tel"
+        placeholder="+7"
+        value={phone}
+        onChange={(e) => {
+          setPhone(phoneMask(e.target.value));
+          setError('');
+        }}
+      />
+      <TextField
+        label="Имя *"
+        variant="owner"
+        placeholder="Иван"
+        value={firstName}
+        onChange={(e) => {
+          setFirstName(e.target.value);
+          setError('');
+        }}
+      />
+      <TextField
+        label="Фамилия *"
+        variant="owner"
+        placeholder="Петров"
+        value={lastName}
+        onChange={(e) => {
+          setLastName(e.target.value);
+          setError('');
+        }}
+      />
+      <TextField
+        label="Наименование организации *"
+        variant="owner"
+        placeholder="ИП Иванов"
+        value={organizationName}
+        onChange={(e) => {
+          setOrganizationName(e.target.value);
+          setError('');
+        }}
+      />
+      <SelectField label="Город" variant="owner" value={city} onChange={(e) => setCity(e.target.value)}>
+        {CITIES_LIST.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </SelectField>
+
+      {error && <ErrorText>{error}</ErrorText>}
+
+      <Button variant="owner" onClick={handleRegister} disabled={loading} style={{ marginTop: 10 }}>
+        {loading ? 'Регистрация...' : 'Зарегистрироваться'}
       </Button>
-
-      <Title level="2" style={{ marginBottom: '4px' }}>Регистрация владельца ПВЗ</Title>
-      <Text style={{ marginBottom: '20px', color: 'var(--tg-theme-hint-color)' }}>Заполните данные организации</Text>
-
-      <Section>
-        <Cell subtitle="Read-only">{telegramId || 'Загрузка...'}</Cell>
-        <Cell subtitle="@Username">@{telegramUsername || '—'}</Cell>
-      </Section>
-
-      <Section header="Личные данные">
-        <Input
-          type="tel"
-          placeholder="+7"
-          value={phone}
-          onChange={(e) => {
-            setPhone(phoneMask(e.target.value));
-            setError('');
-          }}
-          header="Телефон *"
-        />
-        <Input
-          type="text"
-          placeholder="Иван"
-          value={firstName}
-          onChange={(e) => {
-            setFirstName(e.target.value);
-            setError('');
-          }}
-          header="Имя *"
-        />
-        <Input
-          type="text"
-          placeholder="Петров"
-          value={lastName}
-          onChange={(e) => {
-            setLastName(e.target.value);
-            setError('');
-          }}
-          header="Фамилия *"
-        />
-        <Input
-          type="text"
-          placeholder="ИП Иванов"
-          value={organizationName}
-          onChange={(e) => {
-            setOrganizationName(e.target.value);
-            setError('');
-          }}
-          header="Наименование организации *"
-        />
-        <Select
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          header="Город"
-        >
-          <option>Москва</option>
-          <option>Санкт-Петербург</option>
-          <option>Другое</option>
-        </Select>
-      </Section>
-
-      {error && <Text style={{ color: COLORS.error, marginBottom: '12px', padding: '12px' }}>{error}</Text>}
-
-      <Section>
-        <Button
-          size="l"
-          onClick={handleRegister}
-          disabled={loading}
-          style={{ width: '100%' }}
-        >
-          {loading ? 'Регистрация...' : 'Зарегистрироваться'}
-        </Button>
-      </Section>
-    </div>
+    </Screen>
   );
 };

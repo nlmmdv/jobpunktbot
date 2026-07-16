@@ -2,7 +2,7 @@ import { useState, Suspense, lazy } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { Loading } from './components/Loading';
 import { WelcomeScreen } from './screens/WelcomeScreen';
-import { RegistrationScreen } from './screens/RegistrationScreen';
+import { RoleSelectScreen } from './screens/RoleSelectScreen';
 
 // Lazy load registration screens
 const FreelancerRegScreen = lazy(() =>
@@ -75,7 +75,7 @@ function App() {
     }
 
     if (regStep === 'registration') {
-      return <RegistrationScreen onSelectRole={handleSelectRole} onBack={handleBackToLanding} />;
+      return <RoleSelectScreen onSelectRole={handleSelectRole} onBack={handleBackToLanding} />;
     }
 
     if (regStep === 'freelancer_reg') {

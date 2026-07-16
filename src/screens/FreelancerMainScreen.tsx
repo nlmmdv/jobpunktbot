@@ -25,15 +25,14 @@ export const FreelancerMainScreen = () => {
   // Переведённые на дизайн-систему экраны сами рисуют шапку с «Назад».
   if (screen === 'profile') return <ProfileScreen onBack={back} variant="freelancer" />;
   if (screen === 'vacancies') return <VacanciesScreen onBack={back} />;
+  if (screen === 'available') return <AvailableShiftsScreen onBack={back} />;
+  if (screen === 'shifts') return <FreelancerShiftsScreen onBack={back} />;
 
-  // Остальные пока со старыми стилями и без своего onBack — «Назад» даём здесь.
-  // По мере перевода экран переезжает наверх, к уже готовым.
+  // Экран откликов пока со старыми стилями и без своего onBack — «Назад» даём здесь.
   if (screen !== 'menu') {
     return (
       <Screen>
         <BackButton onClick={back} variant="freelancer" />
-        {screen === 'shifts' && <FreelancerShiftsScreen />}
-        {screen === 'available' && <AvailableShiftsScreen />}
         {screen === 'matches' && <FreelancerMatchesScreen />}
       </Screen>
     );

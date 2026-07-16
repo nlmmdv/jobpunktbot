@@ -356,6 +356,71 @@ body {
   overflow-y: auto;
 }
 
+/* === SECONDARY / GHOST BUTTONS === */
+.btn.secondary {
+  background: var(--bg-card-freelancer);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+.btn.ghost-outline {
+  background: var(--bg-input);
+  border: 1.5px solid var(--accent-freelancer);
+  color: var(--accent-freelancer);
+  box-shadow: none;
+  font-size: 12px;
+}
+.btn.ghost-outline.owner {
+  border-color: var(--accent-owner);
+  color: var(--accent-owner);
+}
+
+/* === INPUT STATES / TEXTAREA === */
+.input:disabled,
+.input.is-disabled {
+  background: var(--bg-disabled);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+.input.textarea { resize: none; }
+
+/* === FIELD (label + control) === */
+.field { margin-bottom: 12px; }
+.field .label { margin-bottom: 6px; }
+.field .input,
+.field .select { margin-bottom: 0; }
+
+/* === SECTION HEADER ROW (title + action) === */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+/* === PROFILE === */
+.avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #fff;
+  font-weight: 700;
+  margin: 0 auto 16px;
+}
+.avatar.freelancer { background: linear-gradient(135deg, var(--accent-freelancer), var(--accent-freelancer-hover)); }
+.avatar.owner { background: linear-gradient(135deg, var(--accent-owner), var(--accent-owner-hover)); }
+.info-row { display: flex; align-items: flex-start; gap: 10px; }
+.info-row .emoji { font-size: 16px; line-height: 1.4; }
+.info-row .info-label { font-size: 11px; color: var(--text-secondary); }
+.info-row .info-value { font-size: 14px; color: var(--text-primary); font-weight: 600; }
+.info-divider { height: 1px; background: var(--border-card-freelancer); margin: 12px 0; }
+
+/* === META ROWS (card details) === */
+.meta { font-size: 12px; color: var(--text-hint); margin-bottom: 4px; }
+
 /* === ERROR TEXT === */
 .error-text { color: var(--text-danger); font-size: 12px; margin-top: -8px; margin-bottom: 8px; }
 

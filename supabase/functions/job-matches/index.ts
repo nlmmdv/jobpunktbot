@@ -1,10 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { handleEdgeFunction } from "../_shared/edge-function-utils.ts";
 
-// Реальная схема прода: вакансии лежат в owner_vacancies и НЕ имеют колонки title
-// (заголовок карточки — address). Внешнего ключа job_matches -> profiles нет,
-// поэтому профили подтягиваем отдельным запросом по telegram_id, а не эмбедом.
 const VACANCY_FIELDS = "id, address, payment, date, start_time, end_time";
 
 async function attachProfiles(
@@ -26,38 +21,15 @@ async function attachProfiles(
   return matches.map((m) => ({ ...m, profiles: byTelegramId.get(m[idField]) || null }));
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const body = await req.json();
+Deno.serve((req) =>
+  handleEdgeFunction(req, async (supabase, telegramId, body) => {
     const { action, ...data } = body;
 
-    let telegramId: number;
-    try {
-      telegramId = await requireTelegramId(body);
-    } catch (authErr) {
-      console.error("Auth error:", authErr);
-      return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Missing Supabase credentials");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // CREATE: freelancer responds to vacancy or owner offers vacancy
     if (action === "create") {
       const { vacancy_id, owner_telegram_id, freelancer_telegram_id, freelancer_resume_id, initiated_by } = data;
 
       if (!vacancy_id || !initiated_by) {
-        return jsonResponse({ success: false, error: "Missing required fields" }, 400);
+        throw new Error("Missing required fields");
       }
 
       // Сторону инициатора берём из проверенной подписи Telegram, а не из тела
@@ -85,11 +57,11 @@ Deno.serve(async (req) => {
           freelancerId = freelancer_telegram_id;
         }
       } else {
-        return jsonResponse({ success: false, error: "Invalid initiated_by" }, 400);
+        throw new Error("Invalid initiated_by");
       }
 
       if (!ownerId || !freelancerId) {
-        return jsonResponse({ success: false, error: "Missing required fields" }, 400);
+        throw new Error("Missing required fields");
       }
 
       const { data: match, error } = await supabase
@@ -106,18 +78,14 @@ Deno.serve(async (req) => {
 
       if (error) {
         if (error.code === "23505") {
-          return jsonResponse(
-            { success: false, error: "Уже существует отклик на эту вакансию" },
-            409
-          );
+          throw new Error("Уже существует отклик на эту вакансию");
         }
         throw error;
       }
 
-      return jsonResponse({ success: true, match }, 201);
+      return { match };
     }
 
-    // LIST: freelancer's matches (both responses and offers)
     if (action === "list-for-freelancer") {
       const { data: matches, error } = await supabase
         .from("job_matches")
@@ -137,10 +105,9 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       const withProfiles = await attachProfiles(supabase, matches || [], "owner_telegram_id");
-      return jsonResponse({ success: true, matches: withProfiles });
+      return { matches: withProfiles };
     }
 
-    // LIST: owner's matches (both offers and responses)
     if (action === "list-for-owner") {
       const { data: matches, error } = await supabase
         .from("job_matches")
@@ -160,10 +127,9 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       const withProfiles = await attachProfiles(supabase, matches || [], "freelancer_telegram_id");
-      return jsonResponse({ success: true, matches: withProfiles });
+      return { matches: withProfiles };
     }
 
-    // ACCEPT: respond to a match
     if (action === "accept") {
       const { id } = data;
 
@@ -179,10 +145,9 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
 
-      return jsonResponse({ success: true, match: updated });
+      return { match: updated };
     }
 
-    // REJECT: decline a match
     if (action === "reject") {
       const { id } = data;
 
@@ -198,12 +163,9 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
 
-      return jsonResponse({ success: true, match: updated });
+      return { match: updated };
     }
 
-    return jsonResponse({ success: false, error: "Unknown action" }, 400);
-  } catch (err) {
-    console.error("Error:", err);
-    return jsonResponse({ success: false, error: (err as Error).message }, 500);
-  }
-});
+    throw new Error("Unknown action");
+  })
+);

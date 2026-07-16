@@ -1,17 +1,13 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { handlePublicEdgeFunction } from "../_shared/edge-function-utils.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const FUNCTIONS_URL = Deno.env.get("SUPABASE_URL")?.replace(".co", ".co/functions/v1");
-
-const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 interface BotEvent {
   type: "application_approved" | "application_rejected" | "rating_changed" | "shift_reminder" | "new_applicants" | "onboarding";
   data: Record<string, unknown>;
 }
 
-// Отправка сообщения через send-telegram-message функцию
 async function sendMessage(telegramId: number, message: string, replyMarkup?: Record<string, unknown>) {
   const response = await fetch(`${FUNCTIONS_URL}/send-telegram-message`, {
     method: "POST",
@@ -34,8 +30,7 @@ async function sendMessage(telegramId: number, message: string, replyMarkup?: Re
   return await response.json();
 }
 
-// Получение данных профиля
-async function getUserProfile(telegramId: number) {
+async function getUserProfile(supabase: any, telegramId: number) {
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -46,9 +41,8 @@ async function getUserProfile(telegramId: number) {
   return data;
 }
 
-// Обработка события одобренной заявки
-async function handleApplicationApproved(telegramId: number, applicationData: Record<string, unknown>) {
-  const profile = await getUserProfile(telegramId);
+async function handleApplicationApproved(supabase: any, telegramId: number, applicationData: Record<string, unknown>) {
+  const profile = await getUserProfile(supabase, telegramId);
   const message = `✅ Отлично, ${profile.first_name}!
 
 Твоя заявка принята:
@@ -63,9 +57,8 @@ async function handleApplicationApproved(telegramId: number, applicationData: Re
   await sendMessage(telegramId, message);
 }
 
-// Обработка события отклоненной заявки
-async function handleApplicationRejected(telegramId: number, applicationData: Record<string, unknown>) {
-  const profile = await getUserProfile(telegramId);
+async function handleApplicationRejected(supabase: any, telegramId: number, applicationData: Record<string, unknown>) {
+  const profile = await getUserProfile(supabase, telegramId);
   const message = `😔 Жаль, ${profile.first_name}
 
 К сожалению, твоя заявка на смену в ${applicationData.company_name} не прошла.
@@ -74,9 +67,8 @@ async function handleApplicationRejected(telegramId: number, applicationData: Re
   await sendMessage(telegramId, message);
 }
 
-// Обработка события изменения рейтинга
-async function handleRatingChanged(telegramId: number, ratingData: Record<string, unknown>) {
-  const profile = await getUserProfile(telegramId);
+async function handleRatingChanged(supabase: any, telegramId: number, ratingData: Record<string, unknown>) {
+  const profile = await getUserProfile(supabase, telegramId);
 
   if (ratingData.new_rating > (ratingData.previous_rating || 0)) {
     const message = `🌟 Поздравляем, ${profile.first_name}!
@@ -101,9 +93,8 @@ ${ratingData.reason || ""}
   }
 }
 
-// Обработка события напоминания о смене
-async function handleShiftReminder(telegramId: number, shiftData: Record<string, unknown>) {
-  const profile = await getUserProfile(telegramId);
+async function handleShiftReminder(supabase: any, telegramId: number, shiftData: Record<string, unknown>) {
+  const profile = await getUserProfile(supabase, telegramId);
   const message = `⏰ Напоминание, ${profile.first_name}!
 
 Через 2 часа твоя смена:
@@ -116,9 +107,8 @@ async function handleShiftReminder(telegramId: number, shiftData: Record<string,
   await sendMessage(telegramId, message);
 }
 
-// Обработка события новых откликов (для владельцев)
-async function handleNewApplicants(telegramId: number, applicantData: Record<string, unknown>) {
-  const profile = await getUserProfile(telegramId);
+async function handleNewApplicants(supabase: any, telegramId: number, applicantData: Record<string, unknown>) {
+  const profile = await getUserProfile(supabase, telegramId);
   const message = `📋 У тебя новые отклики!
 
 На вакансию "${applicantData.vacancy_title}" откликнулось ${applicantData.count} человек.
@@ -128,9 +118,8 @@ async function handleNewApplicants(telegramId: number, applicantData: Record<str
   await sendMessage(telegramId, message);
 }
 
-// Обработка события регистрации (Onboarding)
-async function handleOnboarding(telegramId: number) {
-  const profile = await getUserProfile(telegramId);
+async function handleOnboarding(supabase: any, telegramId: number) {
+  const profile = await getUserProfile(supabase, telegramId);
   const message = `👋 Привет, ${profile.first_name}! Я ПроПункт Бот 🤖
 
 Я буду помогать тебе:
@@ -143,68 +132,47 @@ async function handleOnboarding(telegramId: number) {
   await sendMessage(telegramId, message);
 }
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  try {
-    const event = await req.json() as BotEvent;
+Deno.serve((req) =>
+  handlePublicEdgeFunction(req, async (supabase, body) => {
+    const event = body as BotEvent;
 
     console.log("Processing bot event:", event.type);
 
-    // Получаем telegram_id из данных события
     const telegramId = event.data.telegram_id as number;
 
     if (!telegramId) {
-      return new Response(
-        JSON.stringify({ error: "Missing telegram_id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+      throw new Error("Missing telegram_id");
     }
 
-    // Обработка разных типов событий
     switch (event.type) {
       case "application_approved":
-        await handleApplicationApproved(telegramId, event.data);
+        await handleApplicationApproved(supabase, telegramId, event.data);
         break;
 
       case "application_rejected":
-        await handleApplicationRejected(telegramId, event.data);
+        await handleApplicationRejected(supabase, telegramId, event.data);
         break;
 
       case "rating_changed":
-        await handleRatingChanged(telegramId, event.data);
+        await handleRatingChanged(supabase, telegramId, event.data);
         break;
 
       case "shift_reminder":
-        await handleShiftReminder(telegramId, event.data);
+        await handleShiftReminder(supabase, telegramId, event.data);
         break;
 
       case "new_applicants":
-        await handleNewApplicants(telegramId, event.data);
+        await handleNewApplicants(supabase, telegramId, event.data);
         break;
 
       case "onboarding":
-        await handleOnboarding(telegramId);
+        await handleOnboarding(supabase, telegramId);
         break;
 
       default:
-        return new Response(
-          JSON.stringify({ error: "Unknown event type" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        throw new Error("Unknown event type");
     }
 
-    return new Response(
-      JSON.stringify({ success: true, event: event.type }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Error handling bot event:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
-  }
-});
+    return { event: event.type };
+  })
+);

@@ -1,41 +1,26 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { handlePublicEdgeFunction } from "../_shared/edge-function-utils.ts";
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const { type, city, marketplaces, limit = 20, offset = 0 } = await req.json();
+Deno.serve((req) =>
+  handlePublicEdgeFunction(req, async (supabase, body) => {
+    const { type, city, marketplaces, limit = 20, offset = 0 } = body;
 
     if (!type || !["temporary", "permanent"].includes(type)) {
-      return jsonResponse({ success: false, error: "Invalid type" }, 400);
+      throw new Error("Invalid type");
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Missing Supabase credentials");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     let query = supabase
       .from("owner_vacancies")
       .select("*")
       .eq("type", type)
       .eq("status", "active")
-      .range(offset, offset + limit - 1)
+      .range(offset as number, (offset as number) + (limit as number) - 1)
       .order("created_at", { ascending: false });
 
     if (city && city !== "Все") {
       query = query.eq("city", city);
     }
 
-    if (marketplaces && marketplaces.length > 0) {
-      // Filter vacancies that have at least one of the selected marketplaces
+    if (marketplaces && (marketplaces as string[]).length > 0) {
       query = query.contains("marketplaces", marketplaces);
     }
 
@@ -43,9 +28,6 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    return jsonResponse({ success: true, vacancies: vacancies || [] });
-  } catch (err) {
-    console.error("Error:", err);
-    return jsonResponse({ success: false, error: (err as Error).message }, 500);
-  }
-});
+    return { vacancies: vacancies || [] };
+  })
+);

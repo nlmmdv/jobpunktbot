@@ -1,34 +1,11 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { handleEdgeFunction } from "../_shared/edge-function-utils.ts";
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const body = await req.json();
+Deno.serve((req) =>
+  handleEdgeFunction(req, async (supabase, telegramId, body) => {
     const { first_name, last_name, city, about } = body;
 
     // telegramId берём из подписанного Telegram initData, а не из тела запроса —
     // иначе любой клиент мог бы обновить чужой профиль, подставив чужой id.
-    let telegramId: number;
-    try {
-      telegramId = await requireTelegramId(body);
-    } catch (authErr) {
-      return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Missing Supabase credentials");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     const { data: profile, error } = await supabase
       .from("profiles")
       .update({
@@ -43,9 +20,6 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    return jsonResponse({ success: true, profile });
-  } catch (err) {
-    console.error("Error:", err);
-    return jsonResponse({ success: false, error: (err as Error).message }, 500);
-  }
-});
+    return { profile };
+  })
+);

@@ -1,10 +1,6 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { handlePublicEdgeFunction } from "../_shared/edge-function-utils.ts";
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
 interface SendMessageRequest {
   telegramId: number;
@@ -46,20 +42,12 @@ async function sendTelegramMessage(payload: SendMessageRequest) {
   return await response.json();
 }
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
+Deno.serve((req) =>
+  handlePublicEdgeFunction(req, async (supabase, body) => {
+    const payload = body as SendMessageRequest;
 
-  try {
-    const payload = await req.json() as SendMessageRequest;
-
-    // Validate required fields
     if (!payload.telegramId || !payload.message) {
-      return new Response(
-        JSON.stringify({ error: "Missing telegramId or message" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+      throw new Error("Missing telegramId or message");
     }
 
     const result = await sendTelegramMessage(payload);
@@ -75,15 +63,6 @@ Deno.serve(async (req) => {
       })
       .throwOnError();
 
-    return new Response(
-      JSON.stringify({ success: true, result }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Error sending Telegram message:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
-  }
-});
+    return { result };
+  })
+);

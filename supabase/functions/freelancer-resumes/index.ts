@@ -1,34 +1,8 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { handleEdgeFunction } from "../_shared/edge-function-utils.ts";
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const body = await req.json();
+Deno.serve((req) =>
+  handleEdgeFunction(req, async (supabase, userId, body) => {
     const { action, ...data } = body;
-
-    // telegramId берём из подписанного Telegram initData, а не из тела запроса —
-    // иначе любой клиент мог бы прочитать/изменить чужое резюме, подставив чужой id.
-    let userId: number;
-    try {
-      userId = await requireTelegramId(body);
-    } catch (authErr) {
-      console.error(`[freelancer-resumes] Auth error: ${(authErr as Error).message}`);
-      return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Missing Supabase credentials");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     if (action === "get") {
       const { data: resume, error } = await supabase
@@ -41,7 +15,7 @@ Deno.serve(async (req) => {
         throw error;
       }
 
-      return jsonResponse({ success: true, resume: resume || null });
+      return { resume: resume || null };
     }
 
     if (action === "create") {
@@ -66,7 +40,7 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
 
-      return jsonResponse({ success: true, resume }, 201);
+      return { resume };
     }
 
     if (action === "update") {
@@ -91,12 +65,9 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
 
-      return jsonResponse({ success: true, resume });
+      return { resume };
     }
 
-    return jsonResponse({ success: false, error: "Unknown action" }, 400);
-  } catch (err) {
-    console.error("Error:", err);
-    return jsonResponse({ success: false, error: (err as Error).message }, 500);
-  }
-});
+    throw new Error("Unknown action");
+  })
+);

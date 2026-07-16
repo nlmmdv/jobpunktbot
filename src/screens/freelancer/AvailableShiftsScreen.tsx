@@ -334,7 +334,14 @@ export const AvailableShiftsScreen = () => {
       loadVacancies();
     } catch (err) {
       console.error('Failed to apply:', err);
-      alert('❌ Ошибка при отправке отклика');
+      const errorMsg = err instanceof Error ? err.message : 'неизвестная ошибка';
+      if (errorMsg.includes('Уже существует')) {
+        alert('❌ Вы уже откликнулись на эту смену');
+      } else if (errorMsg.includes('initData')) {
+        alert('❌ Сеанс истёк. Пожалуйста, перезагрузите приложение');
+      } else {
+        alert(`❌ Ошибка при отправке отклика: ${errorMsg}`);
+      }
     }
   };
 

@@ -22,15 +22,14 @@ export const OwnerMainScreen = () => {
 
   // Переведённые на дизайн-систему экраны сами рисуют шапку с «Назад».
   if (screen === 'profile') return <ProfileScreen onBack={back} variant="owner" />;
+  if (screen === 'vacancies') return <MyVacanciesScreen onBack={back} />;
+  if (screen === 'search') return <SearchEmployeesScreen onBack={back} />;
 
-  // Остальные пока со старыми стилями и без своего onBack — «Назад» даём здесь.
-  // По мере перевода экран переезжает наверх, к ProfileScreen.
+  // Экран откликов пока со старыми стилями и без своего onBack — «Назад» даём здесь.
   if (screen !== 'menu') {
     return (
       <Screen>
         <BackButton onClick={back} variant="owner" />
-        {screen === 'search' && <SearchEmployeesScreen />}
-        {screen === 'vacancies' && <MyVacanciesScreen />}
         {screen === 'matches' && <OwnerMatchesScreen />}
       </Screen>
     );

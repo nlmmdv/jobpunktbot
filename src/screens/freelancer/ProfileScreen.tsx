@@ -30,7 +30,7 @@ const InfoRow = ({ emoji, label, value }: { emoji: string; label: string; value:
 );
 
 export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenProps) => {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const [showEditModal, setShowEditModal] = useState(false);
   const [formData, setFormData] = useState({
     first_name: profile?.first_name || '',
@@ -101,6 +101,10 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
 
           <Button variant={variant} onClick={() => setShowEditModal(true)}>
             ✏️ Редактировать
+          </Button>
+
+          <Button variant={variant} tone="secondary" onClick={logout} style={{ marginTop: 8 }}>
+            🚪 Выход
           </Button>
         </>
       )}

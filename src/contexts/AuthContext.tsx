@@ -21,6 +21,7 @@ interface AuthContextType {
   profile: Profile | null;
   error: string | null;
   refreshAuth: () => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,12 +76,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const logout = () => {
+    console.log('Logging out...');
+    setProfile(null);
+    setState('no_profile');
+    setError(null);
+  };
+
   useEffect(() => {
     refreshAuth();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ state, profile, error, refreshAuth }}>
+    <AuthContext.Provider value={{ state, profile, error, refreshAuth, logout }}>
       {children}
     </AuthContext.Provider>
   );

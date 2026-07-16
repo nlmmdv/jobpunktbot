@@ -9,7 +9,10 @@ interface SendMessageRequest {
   message: string;
   parseMode?: "HTML" | "Markdown";
   replyMarkup?: {
-    inline_keyboard?: Array<Array<{ text: string; url?: string; callback_data?: string }>>;
+    // web_app — кнопка, открывающая мини-апп прямо из чата.
+    inline_keyboard?: Array<
+      Array<{ text: string; url?: string; callback_data?: string; web_app?: { url: string } }>
+    >;
   };
 }
 
@@ -18,11 +21,20 @@ async function sendTelegramMessage(payload: SendMessageRequest) {
     throw new Error("Server misconfigured: TELEGRAM_JOBBOT_TOKEN не установлен");
   }
 
+  // parse_mode по умолчанию не ставим. В тексты подставляются данные от
+  // пользователей (адрес вакансии, имя), а в HTML-режиме Telegram требует
+  // экранировать < > & — иначе адрес вроде «Тверская, д.1 & 3» уронит отправку,
+  // а через <a href> в адресе можно подсунуть получателю чужую ссылку от имени
+  // бота. Разметки в наших сообщениях нет, поэтому шлём обычным текстом.
+  // Если parseMode передали явно — экранирование на совести вызывающего.
   const body: Record<string, unknown> = {
     chat_id: payload.telegramId,
     text: payload.message,
-    parse_mode: payload.parseMode || "HTML",
   };
+
+  if (payload.parseMode) {
+    body.parse_mode = payload.parseMode;
+  }
 
   if (payload.replyMarkup) {
     body.reply_markup = payload.replyMarkup;

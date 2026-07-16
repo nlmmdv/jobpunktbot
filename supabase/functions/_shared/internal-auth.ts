@@ -1,45 +1,21 @@
-/**
- * Проверка webhook secret от Telegram
- * Гарантирует что апдейты идут только от Telegram, не от посторонних
- */
+// Функции отправки сообщений нельзя выставлять наружу: иначе кто угодно отправит
+// произвольный текст любому пользователю от имени бота. Публичный anon-ключ,
+// которым Supabase гейтит функции по умолчанию, от этого не защищает — он лежит
+// в бандле фронтенда.
+//
+// Поэтому пропускаем только вызовы, предъявившие service_role-ключ, то есть наши
+// же edge-функции (клиент этот ключ никогда не видит).
 
-export function verifyWebhookSecret(headerValue: string | null): boolean {
-  const webhookSecret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");
-
-  if (!webhookSecret) {
-    console.error("TELEGRAM_WEBHOOK_SECRET not configured");
-    return false;
+export function assertInternalCall(req: Request): void {
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!serviceKey) {
+    throw new Error("Server misconfigured: SUPABASE_SERVICE_ROLE_KEY не установлен");
   }
 
-  if (!headerValue) {
-    console.warn("X-Telegram-Bot-Api-Secret-Token header missing");
-    return false;
+  const header = req.headers.get("Authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+
+  if (token !== serviceKey) {
+    throw new Error("Forbidden: функция доступна только внутренним вызовам");
   }
-
-  // Сравнивать нужно с постоянным временем чтобы избежать timing attacks
-  return timingSafeEqual(headerValue, webhookSecret);
-}
-
-/**
- * Comparison с защитой от timing attacks
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-
-  return result === 0;
-}
-
-/**
- * Проверка что это именно Telegram мини-приложение (для будущих функций)
- */
-export function requireInternalAuth(req: Request): boolean {
-  const secretToken = req.headers.get("X-Telegram-Bot-Api-Secret-Token");
-  return verifyWebhookSecret(secretToken);
 }

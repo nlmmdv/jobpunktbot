@@ -1,6 +1,52 @@
-import { handleEdgeFunction } from "../_shared/edge-function-utils.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { triggerBotEvent } from "../_shared/notify.ts";
 
+// Реальная схема прода: вакансии лежат в owner_vacancies и НЕ имеют колонки title
+// (заголовок карточки — address). Внешнего ключа job_matches -> profiles нет,
+// поэтому профили подтягиваем отдельным запросом по telegram_id, а не эмбедом.
 const VACANCY_FIELDS = "id, address, payment, date, start_time, end_time";
+
+/** Данные вакансии и профиля для текста уведомления. */
+async function fetchVacancy(supabase: any, vacancyId: string) {
+  const { data } = await supabase
+    .from("owner_vacancies")
+    .select("address, payment, marketplaces, date, start_time, end_time")
+    .eq("id", vacancyId)
+    .maybeSingle();
+  return data || {};
+}
+
+async function fetchProfile(supabase: any, telegramId: number) {
+  const { data } = await supabase
+    .from("profiles")
+    .select("first_name, last_name, telegram_username")
+    .eq("telegram_id", telegramId)
+    .maybeSingle();
+  return data;
+}
+
+/** Результат отклика сообщаем тому, кто его инициировал. */
+async function notifyMatchResolved(supabase: any, match: any, accepted: boolean) {
+  const initiatedByFreelancer = match.initiated_by === "freelancer";
+  const recipientId = initiatedByFreelancer ? match.freelancer_telegram_id : match.owner_telegram_id;
+  const otherId = initiatedByFreelancer ? match.owner_telegram_id : match.freelancer_telegram_id;
+
+  const [vacancy, other] = await Promise.all([
+    fetchVacancy(supabase, match.vacancy_id),
+    accepted ? fetchProfile(supabase, otherId) : Promise.resolve(null),
+  ]);
+
+  await triggerBotEvent({
+    type: accepted ? "match_accepted" : "match_rejected",
+    data: {
+      telegram_id: recipientId,
+      vacancy,
+      contact_username: other?.telegram_username || null,
+    },
+  });
+}
 
 async function attachProfiles(
   supabase: any,
@@ -21,15 +67,38 @@ async function attachProfiles(
   return matches.map((m) => ({ ...m, profiles: byTelegramId.get(m[idField]) || null }));
 }
 
-Deno.serve((req) =>
-  handleEdgeFunction(req, async (supabase, telegramId, body) => {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const body = await req.json();
     const { action, ...data } = body;
 
+    let telegramId: number;
+    try {
+      telegramId = await requireTelegramId(body);
+    } catch (authErr) {
+      console.error("Auth error:", authErr);
+      return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase credentials");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // CREATE: freelancer responds to vacancy or owner offers vacancy
     if (action === "create") {
       const { vacancy_id, owner_telegram_id, freelancer_telegram_id, freelancer_resume_id, initiated_by } = data;
 
       if (!vacancy_id || !initiated_by) {
-        throw new Error("Missing required fields");
+        return jsonResponse({ success: false, error: "Missing required fields" }, 400);
       }
 
       // Сторону инициатора берём из проверенной подписи Telegram, а не из тела
@@ -57,11 +126,11 @@ Deno.serve((req) =>
           freelancerId = freelancer_telegram_id;
         }
       } else {
-        throw new Error("Invalid initiated_by");
+        return jsonResponse({ success: false, error: "Invalid initiated_by" }, 400);
       }
 
       if (!ownerId || !freelancerId) {
-        throw new Error("Missing required fields");
+        return jsonResponse({ success: false, error: "Missing required fields" }, 400);
       }
 
       const { data: match, error } = await supabase
@@ -78,14 +147,38 @@ Deno.serve((req) =>
 
       if (error) {
         if (error.code === "23505") {
-          throw new Error("Уже существует отклик на эту вакансию");
+          return jsonResponse(
+            { success: false, error: "Уже существует отклик на эту вакансию" },
+            409
+          );
         }
         throw error;
       }
 
-      return { match };
+      // Уведомляем противоположную сторону — инициатор и так знает, что нажал.
+      const vacancy = await fetchVacancy(supabase, vacancy_id);
+      if (initiated_by === "freelancer") {
+        const applicant = await fetchProfile(supabase, freelancerId);
+        await triggerBotEvent({
+          type: "new_application",
+          data: {
+            telegram_id: ownerId,
+            vacancy,
+            applicant_name:
+              [applicant?.first_name, applicant?.last_name].filter(Boolean).join(" ") || "Кандидат",
+          },
+        });
+      } else {
+        await triggerBotEvent({
+          type: "new_offer",
+          data: { telegram_id: freelancerId, vacancy },
+        });
+      }
+
+      return jsonResponse({ success: true, match }, 201);
     }
 
+    // LIST: freelancer's matches (both responses and offers)
     if (action === "list-for-freelancer") {
       const { data: matches, error } = await supabase
         .from("job_matches")
@@ -105,9 +198,10 @@ Deno.serve((req) =>
       if (error) throw error;
 
       const withProfiles = await attachProfiles(supabase, matches || [], "owner_telegram_id");
-      return { matches: withProfiles };
+      return jsonResponse({ success: true, matches: withProfiles });
     }
 
+    // LIST: owner's matches (both offers and responses)
     if (action === "list-for-owner") {
       const { data: matches, error } = await supabase
         .from("job_matches")
@@ -127,9 +221,10 @@ Deno.serve((req) =>
       if (error) throw error;
 
       const withProfiles = await attachProfiles(supabase, matches || [], "freelancer_telegram_id");
-      return { matches: withProfiles };
+      return jsonResponse({ success: true, matches: withProfiles });
     }
 
+    // ACCEPT: respond to a match
     if (action === "accept") {
       const { id } = data;
 
@@ -145,9 +240,12 @@ Deno.serve((req) =>
 
       if (error) throw error;
 
-      return { match: updated };
+      await notifyMatchResolved(supabase, updated, true);
+
+      return jsonResponse({ success: true, match: updated });
     }
 
+    // REJECT: decline a match
     if (action === "reject") {
       const { id } = data;
 
@@ -163,9 +261,14 @@ Deno.serve((req) =>
 
       if (error) throw error;
 
-      return { match: updated };
+      await notifyMatchResolved(supabase, updated, false);
+
+      return jsonResponse({ success: true, match: updated });
     }
 
-    throw new Error("Unknown action");
-  })
-);
+    return jsonResponse({ success: false, error: "Unknown action" }, 400);
+  } catch (err) {
+    console.error("Error:", err);
+    return jsonResponse({ success: false, error: (err as Error).message }, 500);
+  }
+});

@@ -1,6 +1,8 @@
-import { handlePublicEdgeFunction } from "../_shared/edge-function-utils.ts";
+import { assertInternalCall } from "../_shared/internal-auth.ts";
 
-const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
+// Тот же бот, которым tg-auth проверяет подписи initData, — сообщения должны
+// приходить от бота, в котором пользователь открывает приложение.
+const BOT_TOKEN = Deno.env.get("TELEGRAM_JOBBOT_TOKEN");
 
 interface SendMessageRequest {
   telegramId: number;
@@ -13,10 +15,8 @@ interface SendMessageRequest {
 
 async function sendTelegramMessage(payload: SendMessageRequest) {
   if (!BOT_TOKEN) {
-    throw new Error("TELEGRAM_BOT_TOKEN not set");
+    throw new Error("Server misconfigured: TELEGRAM_JOBBOT_TOKEN не установлен");
   }
-
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
   const body: Record<string, unknown> = {
     chat_id: payload.telegramId,
@@ -28,41 +28,62 @@ async function sendTelegramMessage(payload: SendMessageRequest) {
     body.reply_markup = payload.replyMarkup;
   }
 
-  const response = await fetch(url, {
+  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
+  const result = await response.json();
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Telegram API error: ${JSON.stringify(error)}`);
+    throw new Error(`Telegram API error: ${JSON.stringify(result)}`);
   }
 
-  return await response.json();
+  return result;
 }
 
-Deno.serve((req) =>
-  handlePublicEdgeFunction(req, async (supabase, body) => {
-    const payload = body as SendMessageRequest;
+Deno.serve(async (req) => {
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  try {
+    assertInternalCall(req);
+  } catch (authErr) {
+    console.error("Rejected external call:", authErr);
+    return new Response(
+      JSON.stringify({ error: (authErr as Error).message }),
+      { status: 403, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const payload = (await req.json()) as SendMessageRequest;
 
     if (!payload.telegramId || !payload.message) {
-      throw new Error("Missing telegramId or message");
+      return new Response(
+        JSON.stringify({ error: "Missing telegramId or message" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const result = await sendTelegramMessage(payload);
 
-    // Log the message send
-    await supabase
-      .from("telegram_message_logs")
-      .insert({
-        telegram_id: payload.telegramId,
-        message_text: payload.message,
-        sent_at: new Date().toISOString(),
-        telegram_response: result,
-      })
-      .throwOnError();
+    // Лог в консоль функции (её собирает Supabase). Персистентной таблицы логов
+    // намеренно нет: база общая с платформой, заводить в ней таблицу — отдельное
+    // осознанное решение, а не побочный эффект отправки сообщения.
+    console.log(`Sent message to telegram_id=${payload.telegramId}`);
 
-    return { result };
-  })
-);
+    return new Response(
+      JSON.stringify({ success: true, result }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Error sending Telegram message:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});

@@ -1,6 +1,6 @@
 import { useState, Suspense, lazy } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import { Loading } from './components/Loading';
+import { Screen, Loading } from './components/ui';
 import { WelcomeScreen } from './screens/WelcomeScreen';
 import { RoleSelectScreen } from './screens/RoleSelectScreen';
 
@@ -46,26 +46,28 @@ function App() {
     setRegStep('landing');
   };
 
+  const fullscreenLoader = (text: string) => (
+    <Screen center>
+      <Loading text={text} />
+    </Screen>
+  );
+
   // Loading state
   if (state === 'loading') {
-    return <Loading fullscreen message="Загрузка..." />;
+    return fullscreenLoader('Загрузка...');
   }
 
   // Authenticated state
   if (state === 'freelancer') {
-    return (
-      <Suspense fallback={<Loading fullscreen message="Загрузка приложения..." />}>
-        <FreelancerMainScreen />
-      </Suspense>
-    );
+    return <Suspense fallback={fullscreenLoader('Загрузка приложения...')}>
+      <FreelancerMainScreen />
+    </Suspense>;
   }
 
   if (state === 'owner') {
-    return (
-      <Suspense fallback={<Loading fullscreen message="Загрузка приложения..." />}>
-        <OwnerMainScreen />
-      </Suspense>
-    );
+    return <Suspense fallback={fullscreenLoader('Загрузка приложения...')}>
+      <OwnerMainScreen />
+    </Suspense>;
   }
 
   // Registration flow for new users
@@ -80,7 +82,7 @@ function App() {
 
     if (regStep === 'freelancer_reg') {
       return (
-        <Suspense fallback={<Loading message="Загрузка..." />}>
+        <Suspense fallback={<Loading text="Загрузка..." />}>
           <FreelancerRegScreen onBack={handleBackToRegistration} />
         </Suspense>
       );
@@ -88,7 +90,7 @@ function App() {
 
     if (regStep === 'owner_reg') {
       return (
-        <Suspense fallback={<Loading message="Загрузка..." />}>
+        <Suspense fallback={<Loading text="Загрузка..." />}>
           <OwnerRegScreen onBack={handleBackToRegistration} />
         </Suspense>
       );

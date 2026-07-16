@@ -1,1 +1,8 @@
 # Supabase Configuration
+
+# Вебхук Telegram вызывает сам Telegram — он не умеет предъявлять наши ключи,
+# поэтому дефолтную JWT-проверку для этой функции надо снять, иначе апдейты
+# отбрасываются ещё до нашего кода. Защита эндпоинта — секрет в заголовке
+# X-Telegram-Bot-Api-Secret-Token (проверяется внутри функции).
+[functions.telegram-webhook]
+verify_jwt = false

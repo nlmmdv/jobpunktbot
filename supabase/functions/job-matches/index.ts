@@ -2,6 +2,30 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
 
+// Реальная схема прода: вакансии лежат в owner_vacancies и НЕ имеют колонки title
+// (заголовок карточки — address). Внешнего ключа job_matches -> profiles нет,
+// поэтому профили подтягиваем отдельным запросом по telegram_id, а не эмбедом.
+const VACANCY_FIELDS = "id, address, payment, date, start_time, end_time";
+
+async function attachProfiles(
+  supabase: any,
+  matches: any[],
+  idField: "owner_telegram_id" | "freelancer_telegram_id"
+) {
+  const ids = [...new Set(matches.map((m) => m[idField]).filter(Boolean))];
+  if (ids.length === 0) return matches;
+
+  const { data: profiles, error } = await supabase
+    .from("profiles")
+    .select("telegram_id, first_name, last_name, telegram_username, city")
+    .in("telegram_id", ids);
+
+  if (error) throw error;
+
+  const byTelegramId = new Map((profiles || []).map((p: any) => [p.telegram_id, p]));
+  return matches.map((m) => ({ ...m, profiles: byTelegramId.get(m[idField]) || null }));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -30,21 +54,50 @@ Deno.serve(async (req) => {
 
     // CREATE: freelancer responds to vacancy or owner offers vacancy
     if (action === "create") {
-      const { vacancy_id, owner_telegram_id, freelancer_telegram_id, initiated_by } = data;
+      const { vacancy_id, owner_telegram_id, freelancer_telegram_id, freelancer_resume_id, initiated_by } = data;
 
-      if (!vacancy_id || !owner_telegram_id || !freelancer_telegram_id || !initiated_by) {
-        return jsonResponse(
-          { success: false, error: "Missing required fields" },
-          400
-        );
+      if (!vacancy_id || !initiated_by) {
+        return jsonResponse({ success: false, error: "Missing required fields" }, 400);
+      }
+
+      // Сторону инициатора берём из проверенной подписи Telegram, а не из тела
+      // запроса — иначе любой мог бы создать отклик от чужого имени (IDOR).
+      let ownerId: number | undefined;
+      let freelancerId: number | undefined;
+
+      if (initiated_by === "freelancer") {
+        freelancerId = telegramId;
+        ownerId = owner_telegram_id;
+      } else if (initiated_by === "owner") {
+        ownerId = telegramId;
+        // search-freelancers намеренно не отдаёт telegram_id фрилансера, поэтому
+        // клиент присылает id резюме, а telegram_id резолвим здесь.
+        if (freelancer_resume_id) {
+          const { data: resume, error: resumeErr } = await supabase
+            .from("freelancer_resumes")
+            .select("telegram_id")
+            .eq("id", freelancer_resume_id)
+            .single();
+
+          if (resumeErr) throw resumeErr;
+          freelancerId = resume?.telegram_id;
+        } else {
+          freelancerId = freelancer_telegram_id;
+        }
+      } else {
+        return jsonResponse({ success: false, error: "Invalid initiated_by" }, 400);
+      }
+
+      if (!ownerId || !freelancerId) {
+        return jsonResponse({ success: false, error: "Missing required fields" }, 400);
       }
 
       const { data: match, error } = await supabase
         .from("job_matches")
         .insert({
           vacancy_id,
-          owner_telegram_id,
-          freelancer_telegram_id,
+          owner_telegram_id: ownerId,
+          freelancer_telegram_id: freelancerId,
           initiated_by,
           status: "pending",
         })
@@ -76,27 +129,15 @@ Deno.serve(async (req) => {
           initiated_by,
           created_at,
           responded_at,
-          owner_vacancies (
-            id,
-            title,
-            address,
-            payment,
-            date,
-            start_time,
-            end_time
-          ),
-          profiles!owner_telegram_id (
-            first_name,
-            last_name,
-            telegram_username
-          )
+          owner_vacancies ( ${VACANCY_FIELDS} )
         `)
         .eq("freelancer_telegram_id", telegramId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      return jsonResponse({ success: true, matches: matches || [] });
+      const withProfiles = await attachProfiles(supabase, matches || [], "owner_telegram_id");
+      return jsonResponse({ success: true, matches: withProfiles });
     }
 
     // LIST: owner's matches (both offers and responses)
@@ -111,42 +152,20 @@ Deno.serve(async (req) => {
           initiated_by,
           created_at,
           responded_at,
-          owner_vacancies (
-            id,
-            title,
-            address,
-            payment
-          ),
-          profiles!freelancer_telegram_id (
-            first_name,
-            last_name,
-            telegram_username,
-            city
-          )
+          owner_vacancies ( ${VACANCY_FIELDS} )
         `)
         .eq("owner_telegram_id", telegramId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      return jsonResponse({ success: true, matches: matches || [] });
+      const withProfiles = await attachProfiles(supabase, matches || [], "freelancer_telegram_id");
+      return jsonResponse({ success: true, matches: withProfiles });
     }
 
     // ACCEPT: respond to a match
     if (action === "accept") {
       const { id } = data;
-
-      const { data: match, error: fetchError } = await supabase
-        .from("job_matches")
-        .select(`
-          *,
-          profiles!owner_telegram_id (telegram_username),
-          freelancer!profiles_freelancer (telegram_username)
-        `)
-        .eq("id", id)
-        .single();
-
-      if (fetchError) throw fetchError;
 
       const { data: updated, error } = await supabase
         .from("job_matches")

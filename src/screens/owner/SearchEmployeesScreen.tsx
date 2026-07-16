@@ -20,7 +20,6 @@ const CITIES = ['Москва', 'Санкт-Петербург', 'Все'];
 
 interface Vacancy {
   id: string;
-  title: string;
   address: string;
   payment: number;
 }
@@ -115,13 +114,14 @@ export const SearchEmployeesScreen = () => {
     }
   };
 
-  const handleSelectVacancyForOffer = async (vacancyId: string, freelancerTelegramId: number, ownerTelegramId: number) => {
+  // telegram_id владельца берётся на сервере из подписи Telegram, а telegram_id
+  // фрилансера резолвится по id резюме (search-freelancers его намеренно не отдаёт).
+  const handleSelectVacancyForOffer = async (vacancyId: string, freelancerResumeId: string) => {
     try {
       await callFunction('job-matches', {
         action: 'create',
         vacancy_id: vacancyId,
-        owner_telegram_id: ownerTelegramId,
-        freelancer_telegram_id: freelancerTelegramId,
+        freelancer_resume_id: freelancerResumeId,
         initiated_by: 'owner',
       });
       setShowOfferModal(false);
@@ -321,7 +321,7 @@ export const SearchEmployeesScreen = () => {
               ownerVacancies.map((vacancy) => (
                 <div
                   key={vacancy.id}
-                  onClick={() => handleSelectVacancyForOffer(vacancy.id, parseInt(selectedFreelancer.id), 0)}
+                  onClick={() => handleSelectVacancyForOffer(vacancy.id, selectedFreelancer.id)}
                   style={{
                     background: '#F5F8FE',
                     border: '1px solid #E1EBFB',
@@ -335,9 +335,6 @@ export const SearchEmployeesScreen = () => {
                   onMouseLeave={(e) => (e.currentTarget.style.background = '#F5F8FE')}
                 >
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#17151F', marginBottom: 6 }}>
-                    {vacancy.title}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#6E6A7C', marginBottom: 4 }}>
                     📍 {vacancy.address}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#2563EB' }}>

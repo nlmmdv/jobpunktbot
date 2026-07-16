@@ -15,7 +15,8 @@ interface Vacancy {
   marketplaces: string[];
   payment: number;
   metro_stations: string[];
-  owner_telegram_id?: number;
+  /** Владелец вакансии. В таблице owner_vacancies это telegram_id (не owner_telegram_id). */
+  telegram_id?: number;
 }
 
 interface Resume {
@@ -316,7 +317,11 @@ export const AvailableShiftsScreen = () => {
     station.name.toLowerCase().includes(metroSearch.toLowerCase())
   );
 
-  const handleApply = async (shiftId: string, ownerTelegramId: number) => {
+  const handleApply = async (shiftId: string, ownerTelegramId?: number) => {
+    if (!ownerTelegramId) {
+      alert('❌ У вакансии не указан владелец');
+      return;
+    }
     try {
       await callFunction('job-matches', {
         action: 'create',
@@ -512,7 +517,7 @@ export const AvailableShiftsScreen = () => {
               </div>
 
               <button
-                onClick={() => handleApply(vacancy.id, vacancy.owner_telegram_id || 0)}
+                onClick={() => handleApply(vacancy.id, vacancy.telegram_id)}
                 style={{
                   width: '100%',
                   padding: 9,

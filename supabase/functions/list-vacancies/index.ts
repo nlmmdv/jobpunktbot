@@ -23,10 +23,10 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     let query = supabase
-      .from("vacancies")
+      .from("owner_vacancies")
       .select("*")
       .eq("type", type)
-      .eq("status", "open")
+      .eq("status", "active")
       .range(offset, offset + limit - 1)
       .order("created_at", { ascending: false });
 

@@ -12,7 +12,6 @@ interface Match {
   responded_at?: string;
   owner_vacancies?: {
     id: string;
-    title: string;
     address: string;
     payment: number;
   };
@@ -176,7 +175,7 @@ export const OwnerMatchesScreen = () => {
             </div>
 
             <div style={{ fontSize: 13, fontWeight: 600, color: '#17151F', marginBottom: 6 }}>
-              {match.owner_vacancies?.title}
+              {match.owner_vacancies?.address}
             </div>
 
             <div style={{ fontSize: 12, color: '#6E6A7C', marginBottom: 10 }}>

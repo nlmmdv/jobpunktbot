@@ -20,9 +20,11 @@ export const OwnerMainScreen = () => {
   const [screen, setScreen] = useState<Tab>('menu');
   const back = () => setScreen('menu');
 
-  // Вложенные экраны пока не приняли дизайн-систему и не имеют своего onBack,
-  // поэтому «Назад» рисуем здесь. По мере перевода каждого экрана эта обёртка
-  // для него убирается, а кнопка уезжает в его собственный ScreenHeader.
+  // Переведённые на дизайн-систему экраны сами рисуют шапку с «Назад».
+  if (screen === 'profile') return <ProfileScreen onBack={back} variant="owner" />;
+
+  // Остальные пока со старыми стилями и без своего onBack — «Назад» даём здесь.
+  // По мере перевода экран переезжает наверх, к ProfileScreen.
   if (screen !== 'menu') {
     return (
       <Screen>
@@ -30,7 +32,6 @@ export const OwnerMainScreen = () => {
         {screen === 'search' && <SearchEmployeesScreen />}
         {screen === 'vacancies' && <MyVacanciesScreen />}
         {screen === 'matches' && <OwnerMatchesScreen />}
-        {screen === 'profile' && <ProfileScreen />}
       </Screen>
     );
   }

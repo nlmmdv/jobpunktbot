@@ -59,7 +59,9 @@ export const FreelancerRegScreen = ({ onBack }: FreelancerRegScreenProps) => {
 
     try {
       await callFunction('tg-register', {
-        role: 'freelancer',
+        // В БД роль работника называется 'employee' — 'freelancer' нарушает
+        // profiles_role_check. Остальной код тоже ждёт 'employee' (см. AuthContext).
+        role: 'employee',
         phone,
         first_name: firstName,
         last_name: lastName,

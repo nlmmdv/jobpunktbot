@@ -38,6 +38,13 @@ Deno.serve(async (req) => {
       );
     }
 
+    // profiles — общая таблица платформы, где роли admin/ceo/developer дают широкие
+    // права. Это приложение регистрирует только работников и владельцев, поэтому
+    // роль из тела запроса пропускаем через белый список (иначе — эскалация прав).
+    if (!["employee", "owner"].includes(role)) {
+      return jsonResponse({ success: false, error: "Invalid role" }, 400);
+    }
+
     // Проверяем что пользователь ещё не зарегистрирован
     const { data: existing } = await supabase
       .from("profiles")

@@ -80,7 +80,8 @@ Deno.serve(async (req) => {
 
     console.log(`Registration success for telegram_id=${telegramId}, role=${role}`);
 
-    await triggerBotEvent({ type: "onboarding", data: { telegram_id: telegramId } });
+    // Роль передаём явно: онбординг у сотрудника и владельца разный.
+    await triggerBotEvent({ type: "onboarding", data: { telegram_id: telegramId, role } });
 
     return jsonResponse({ success: true, profile }, 201);
   } catch (err) {

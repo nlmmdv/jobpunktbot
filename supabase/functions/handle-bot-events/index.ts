@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { assertInternalCall } from "../_shared/internal-auth.ts";
-import { botMessages, type VacancyInfo } from "../_shared/bot-messages.ts";
+import { botMessages, type Role, type VacancyInfo } from "../_shared/bot-messages.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -20,6 +20,8 @@ interface BotEvent {
     /** Кому шлём. */
     telegram_id: number;
     vacancy?: VacancyInfo;
+    /** Для onboarding — у сотрудника и владельца разные тексты. */
+    role?: Role;
     /** Для new_application — имя откликнувшегося. */
     applicant_name?: string;
     /** Для match_accepted — контакт второй стороны. */
@@ -71,7 +73,7 @@ Deno.serve(async (req) => {
     let message: string;
     switch (event.type) {
       case "onboarding":
-        message = botMessages.onboarding(firstName);
+        message = botMessages.onboarding(firstName, event.data.role === "owner" ? "owner" : "employee");
         break;
       case "new_application":
         message = botMessages.newApplication(firstName, event.data.applicant_name || "Кандидат", vacancy);

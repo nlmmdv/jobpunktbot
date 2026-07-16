@@ -12,7 +12,7 @@ const VACANCY_FIELDS = "id, address, payment, date, start_time, end_time";
 async function fetchVacancy(supabase: any, vacancyId: string) {
   const { data } = await supabase
     .from("owner_vacancies")
-    .select("address, payment, date, start_time, end_time")
+    .select("address, payment, marketplaces, date, start_time, end_time")
     .eq("id", vacancyId)
     .maybeSingle();
   return data || {};

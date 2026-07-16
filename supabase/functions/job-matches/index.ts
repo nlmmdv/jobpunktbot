@@ -1,11 +1,52 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { triggerBotEvent } from "../_shared/notify.ts";
 
 // Реальная схема прода: вакансии лежат в owner_vacancies и НЕ имеют колонки title
 // (заголовок карточки — address). Внешнего ключа job_matches -> profiles нет,
 // поэтому профили подтягиваем отдельным запросом по telegram_id, а не эмбедом.
 const VACANCY_FIELDS = "id, address, payment, date, start_time, end_time";
+
+/** Данные вакансии и профиля для текста уведомления. */
+async function fetchVacancy(supabase: any, vacancyId: string) {
+  const { data } = await supabase
+    .from("owner_vacancies")
+    .select("address, payment, date, start_time, end_time")
+    .eq("id", vacancyId)
+    .maybeSingle();
+  return data || {};
+}
+
+async function fetchProfile(supabase: any, telegramId: number) {
+  const { data } = await supabase
+    .from("profiles")
+    .select("first_name, last_name, telegram_username")
+    .eq("telegram_id", telegramId)
+    .maybeSingle();
+  return data;
+}
+
+/** Результат отклика сообщаем тому, кто его инициировал. */
+async function notifyMatchResolved(supabase: any, match: any, accepted: boolean) {
+  const initiatedByFreelancer = match.initiated_by === "freelancer";
+  const recipientId = initiatedByFreelancer ? match.freelancer_telegram_id : match.owner_telegram_id;
+  const otherId = initiatedByFreelancer ? match.owner_telegram_id : match.freelancer_telegram_id;
+
+  const [vacancy, other] = await Promise.all([
+    fetchVacancy(supabase, match.vacancy_id),
+    accepted ? fetchProfile(supabase, otherId) : Promise.resolve(null),
+  ]);
+
+  await triggerBotEvent({
+    type: accepted ? "match_accepted" : "match_rejected",
+    data: {
+      telegram_id: recipientId,
+      vacancy,
+      contact_username: other?.telegram_username || null,
+    },
+  });
+}
 
 async function attachProfiles(
   supabase: any,
@@ -114,6 +155,26 @@ Deno.serve(async (req) => {
         throw error;
       }
 
+      // Уведомляем противоположную сторону — инициатор и так знает, что нажал.
+      const vacancy = await fetchVacancy(supabase, vacancy_id);
+      if (initiated_by === "freelancer") {
+        const applicant = await fetchProfile(supabase, freelancerId);
+        await triggerBotEvent({
+          type: "new_application",
+          data: {
+            telegram_id: ownerId,
+            vacancy,
+            applicant_name:
+              [applicant?.first_name, applicant?.last_name].filter(Boolean).join(" ") || "Кандидат",
+          },
+        });
+      } else {
+        await triggerBotEvent({
+          type: "new_offer",
+          data: { telegram_id: freelancerId, vacancy },
+        });
+      }
+
       return jsonResponse({ success: true, match }, 201);
     }
 
@@ -179,6 +240,8 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
 
+      await notifyMatchResolved(supabase, updated, true);
+
       return jsonResponse({ success: true, match: updated });
     }
 
@@ -197,6 +260,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (error) throw error;
+
+      await notifyMatchResolved(supabase, updated, false);
 
       return jsonResponse({ success: true, match: updated });
     }

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { triggerBotEvent } from "../_shared/notify.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -78,6 +79,9 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Registration success for telegram_id=${telegramId}, role=${role}`);
+
+    await triggerBotEvent({ type: "onboarding", data: { telegram_id: telegramId } });
+
     return jsonResponse({ success: true, profile }, 201);
   } catch (err) {
     console.error("Error:", err);

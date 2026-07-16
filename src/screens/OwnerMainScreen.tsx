@@ -4,7 +4,7 @@ import { SearchEmployeesScreen } from './owner/SearchEmployeesScreen';
 import { MyVacanciesScreen } from './owner/MyVacanciesScreen';
 import { OwnerMatchesScreen } from './owner/OwnerMatchesScreen';
 import { ProfileScreen } from './freelancer/ProfileScreen';
-import { Screen, BackButton, MenuGrid, type MenuItem } from '../components/ui';
+import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 
 type Tab = 'menu' | 'search' | 'vacancies' | 'matches' | 'profile';
 
@@ -20,20 +20,11 @@ export const OwnerMainScreen = () => {
   const [screen, setScreen] = useState<Tab>('menu');
   const back = () => setScreen('menu');
 
-  // Переведённые на дизайн-систему экраны сами рисуют шапку с «Назад».
+  // Каждый экран сам рисует свою шапку с «Назад» (ScreenHeader).
   if (screen === 'profile') return <ProfileScreen onBack={back} variant="owner" />;
   if (screen === 'vacancies') return <MyVacanciesScreen onBack={back} />;
   if (screen === 'search') return <SearchEmployeesScreen onBack={back} />;
-
-  // Экран откликов пока со старыми стилями и без своего onBack — «Назад» даём здесь.
-  if (screen !== 'menu') {
-    return (
-      <Screen>
-        <BackButton onClick={back} variant="owner" />
-        {screen === 'matches' && <OwnerMatchesScreen />}
-      </Screen>
-    );
-  }
+  if (screen === 'matches') return <OwnerMatchesScreen onBack={back} />;
 
   return (
     <Screen>

@@ -154,7 +154,9 @@ export const Chip = ({
   </span>
 );
 
-export const Badge = ({ children, tone }: { children: ReactNode; tone: 'temp-f' | 'perm-f' | 'temp-o' }) => (
+export type BadgeTone = 'temp-f' | 'perm-f' | 'temp-o' | 'pending' | 'accepted' | 'rejected';
+
+export const Badge = ({ children, tone }: { children: ReactNode; tone: BadgeTone }) => (
   <span className={cx('badge', tone)}>{children}</span>
 );
 

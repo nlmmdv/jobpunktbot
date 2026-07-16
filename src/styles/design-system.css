@@ -17,6 +17,10 @@
   --bg-badge-temp-f: #EDE4FB;
   --bg-badge-perm-f: #E9E3FB;
   --bg-badge-temp-o: #DCE9FE;
+  /* Статусы откликов: в макете их не было (экранов откликов там нет),
+     добавлены в том же ключе, что и остальные бейджи. */
+  --bg-badge-pending: #FFF7ED;
+  --bg-badge-accepted: #DCFCE7;
   --bg-disabled: #EDEAF4;
   --bg-danger: #FDECEC;
 
@@ -33,6 +37,8 @@
   --text-muted: #B7B2C4;
   --text-badge: #7C3AED;
   --text-badge-owner: #1D4ED8;
+  --text-badge-pending: #D97706;
+  --text-badge-accepted: #16A34A;
   --text-danger: #DC2626;
   --text-on-accent: #FFFFFF;
 
@@ -234,6 +240,9 @@ body {
 .badge.temp-f { background: var(--bg-badge-temp-f); color: var(--text-badge); }
 .badge.perm-f { background: var(--bg-badge-perm-f); color: var(--text-badge); }
 .badge.temp-o { background: var(--bg-badge-temp-o); color: var(--text-badge-owner); }
+.badge.pending { background: var(--bg-badge-pending); color: var(--text-badge-pending); }
+.badge.accepted { background: var(--bg-badge-accepted); color: var(--text-badge-accepted); }
+.badge.rejected { background: var(--bg-danger); color: var(--text-danger); }
 
 /* === PRICE === */
 .price { font-weight: 700; font-size: 14px; margin-bottom: 4px; }

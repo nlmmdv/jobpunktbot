@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction } from '../../lib/api';
+import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState, type BadgeTone } from '../../components/ui';
 
 interface Match {
   id: string;
@@ -25,7 +26,13 @@ interface Match {
   };
 }
 
-export const FreelancerMatchesScreen = () => {
+const STATUS: Record<string, { tone: BadgeTone; text: string }> = {
+  pending: { tone: 'pending', text: 'Ожидает ⏳' },
+  accepted: { tone: 'accepted', text: 'Принят ✅' },
+  rejected: { tone: 'rejected', text: 'Отклонён ❌' },
+};
+
+export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
   const { profile } = useAuth();
   const [tab, setTab] = useState<'sent' | 'offers'>('sent');
   const [matches, setMatches] = useState<Match[]>([]);
@@ -54,10 +61,7 @@ export const FreelancerMatchesScreen = () => {
 
   const handleAccept = async (matchId: string) => {
     try {
-      await callFunction('job-matches', {
-        action: 'accept',
-        id: matchId,
-      });
+      await callFunction('job-matches', { action: 'accept', id: matchId });
       loadMatches();
     } catch (err) {
       console.error('Failed to accept:', err);
@@ -67,10 +71,7 @@ export const FreelancerMatchesScreen = () => {
 
   const handleReject = async (matchId: string) => {
     try {
-      await callFunction('job-matches', {
-        action: 'reject',
-        id: matchId,
-      });
+      await callFunction('job-matches', { action: 'reject', id: matchId });
       loadMatches();
     } catch (err) {
       console.error('Failed to reject:', err);
@@ -78,184 +79,93 @@ export const FreelancerMatchesScreen = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return { bg: '#FFF7ED', color: '#D97706', text: 'Ожидает ⏳' };
-      case 'accepted':
-        return { bg: '#DCFCE7', color: '#16A34A', text: 'Принят ✅' };
-      case 'rejected':
-        return { bg: '#FDECEC', color: '#DC2626', text: 'Отклонён ❌' };
-      default:
-        return { bg: '#F3F4F6', color: '#6B7280', text: status };
-    }
-  };
-
-  const sentMatches = matches.filter(m => m.initiated_by === 'freelancer');
-  const offerMatches = matches.filter(m => m.initiated_by === 'owner');
-
-  const displayMatches = tab === 'sent' ? sentMatches : offerMatches;
+  const displayMatches = matches.filter((m) =>
+    tab === 'sent' ? m.initiated_by === 'freelancer' : m.initiated_by === 'owner'
+  );
 
   if (loading) {
     return (
-      <div style={{ padding: '20px 18px', minHeight: '100vh', background: '#fff' }}>
-        <div style={{ textAlign: 'center', color: '#8B8798' }}>Загрузка...</div>
-      </div>
+      <Screen>
+        <ScreenHeader title="📬 Мои отклики" variant="freelancer" onBack={onBack} />
+        <Loading />
+      </Screen>
     );
   }
 
   return (
-    <div style={{ padding: '20px 18px', maxWidth: 400, margin: '0 auto', background: '#fff', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif' }}>
-      <div style={{ fontSize: 18, fontWeight: 800, color: '#17151F', marginBottom: 16 }}>📬 Мои отклики</div>
+    <Screen>
+      <ScreenHeader title="📬 Мои отклики" variant="freelancer" onBack={onBack} />
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-        <button
-          onClick={() => setTab('sent')}
-          style={{
-            flex: 1,
-            padding: '12px 16px',
-            border: 'none',
-            borderRadius: 10,
-            background: tab === 'sent' ? '#6D28D9' : '#F7F6FB',
-            color: tab === 'sent' ? '#fff' : '#6D28D9',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <Button tone={tab === 'sent' ? 'primary' : 'secondary'} small onClick={() => setTab('sent')}>
           Мои отклики
-        </button>
-        <button
-          onClick={() => setTab('offers')}
-          style={{
-            flex: 1,
-            padding: '12px 16px',
-            border: 'none',
-            borderRadius: 10,
-            background: tab === 'offers' ? '#6D28D9' : '#F7F6FB',
-            color: tab === 'offers' ? '#fff' : '#6D28D9',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
+        </Button>
+        <Button tone={tab === 'offers' ? 'primary' : 'secondary'} small onClick={() => setTab('offers')}>
           Предложения мне
-        </button>
+        </Button>
       </div>
 
-      {/* Empty State */}
       {displayMatches.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8B8798' }}>
-          {tab === 'sent' ? '📝 Нет откликов' : '📬 Нет предложений'}
-        </div>
+        <EmptyState>{tab === 'sent' ? '📝 Нет откликов' : '📬 Нет предложений'}</EmptyState>
       )}
 
-      {/* Matches List */}
       {displayMatches.map((match) => {
-        const statusBadge = getStatusBadge(match.status);
+        const status = STATUS[match.status];
         const tgUsername = match.profiles?.telegram_username;
 
         return (
-          <div
-            key={match.id}
-            style={{
-              background: '#F7F6FB',
-              border: '1px solid #ECEAF4',
-              borderRadius: 14,
-              padding: 14,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#17151F', marginBottom: 8 }}>
+          <Card key={match.id} variant="freelancer">
+            {status && <Badge tone={status.tone}>{status.text}</Badge>}
+
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               📍 {match.owner_vacancies?.address}
             </div>
 
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#17151F', marginBottom: 10 }}>
-              💰 {match.owner_vacancies?.payment}₽
-            </div>
+            {match.owner_vacancies?.date && (
+              <div className="meta">
+                📅 {new Date(match.owner_vacancies.date).toLocaleDateString('ru')}
+                {match.owner_vacancies.start_time && `, ${match.owner_vacancies.start_time} — ${match.owner_vacancies.end_time}`}
+              </div>
+            )}
 
-            {/* Status Badge */}
-            <div
-              style={{
-                display: 'inline-block',
-                background: statusBadge.bg,
-                color: statusBadge.color,
-                padding: '4px 10px',
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 600,
-                marginBottom: 10,
-              }}
-            >
-              {statusBadge.text}
-            </div>
+            <div className="price freelancer" style={{ marginBottom: 10 }}>💰 {match.owner_vacancies?.payment} ₽</div>
 
-            {/* Contact Info - Only show when accepted */}
+            {/* Контакты открываем только после принятия */}
             {match.status === 'accepted' && tgUsername && (
-              <div style={{ marginTop: 10 }}>
-                <a
-                  href={`https://t.me/${tgUsername.replace('@', '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'block',
-                    background: '#F0FDF4',
-                    border: '1px solid #BBF7D0',
-                    borderRadius: 12,
-                    padding: 12,
-                    textDecoration: 'none',
-                    color: '#16A34A',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    textAlign: 'center',
-                  }}
-                >
-                  📱 Связаться: @{tgUsername.replace('@', '')}
-                </a>
-              </div>
+              <a
+                href={`https://t.me/${tgUsername.replace('@', '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'block',
+                  background: 'var(--bg-badge-accepted)',
+                  borderRadius: 12,
+                  padding: 12,
+                  textDecoration: 'none',
+                  color: 'var(--text-badge-accepted)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  textAlign: 'center',
+                }}
+              >
+                📱 Связаться: @{tgUsername.replace('@', '')}
+              </a>
             )}
 
-            {/* Action Buttons - Only for offer tab with pending status */}
+            {/* Принять/отклонить — только для входящих предложений в ожидании */}
             {tab === 'offers' && match.status === 'pending' && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button
-                  onClick={() => handleAccept(match.id)}
-                  style={{
-                    flex: 1,
-                    padding: 10,
-                    border: 'none',
-                    borderRadius: 10,
-                    background: '#6D28D9',
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button small onClick={() => handleAccept(match.id)}>
                   Принять
-                </button>
-                <button
-                  onClick={() => handleReject(match.id)}
-                  style={{
-                    flex: 1,
-                    padding: 10,
-                    border: '1px solid #ECEAF4',
-                    borderRadius: 10,
-                    background: '#fff',
-                    color: '#6E6A7C',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
+                </Button>
+                <Button small tone="secondary" onClick={() => handleReject(match.id)}>
                   Отклонить
-                </button>
+                </Button>
               </div>
             )}
-          </div>
+          </Card>
         );
       })}
-    </div>
+    </Screen>
   );
 };

@@ -100,7 +100,9 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
       },
-      body: JSON.stringify({ telegramId, message }),
+      // Тексты в bot-messages экранированы под HTML — режим обязателен, иначе
+      // «&amp;» и теги дойдут до пользователя как есть.
+      body: JSON.stringify({ telegramId, message, parseMode: "HTML" }),
     });
 
     if (!response.ok) {

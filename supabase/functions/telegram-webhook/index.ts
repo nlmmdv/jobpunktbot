@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-import { botMessages, openAppButton } from "../_shared/bot-messages.ts";
+import { botMessages, openAppButton, type RaterRole, type VacancyInfo } from "../_shared/bot-messages.ts";
 
-// Вебхук Telegram: сюда прилетают апдейты от бота (нажатие /start и т.п.).
+// Вебхук Telegram: сюда прилетают апдейты от бота — /start, нажатия кнопок
+// (callback_query) и текстовые ответы.
 //
 // В отличие от остальных функций, этот эндпоинт публичный по необходимости —
 // его вызывает Telegram, а он не умеет предъявлять наши ключи. Поэтому в
@@ -13,25 +14,210 @@ import { botMessages, openAppButton } from "../_shared/bot-messages.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const WEBHOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");
+const BOT_TOKEN = Deno.env.get("TELEGRAM_JOBBOT_TOKEN");
 
 /** Telegram ретраит доставку на любой не-2xx и может отключить вебхук, поэтому
  *  на свои внутренние ошибки отвечаем 200 — они уходят в логи, а не в ретраи. */
 const ok = () => new Response("ok", { status: 200 });
 
-async function sendMessage(telegramId: number, message: string) {
+/** Пока не ответить на callback — у пользователя крутится часик на кнопке. */
+async function answerCallback(callbackId: string, text?: string) {
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackId, text }),
+  });
+}
+
+async function sendMessage(telegramId: number, message: string, replyMarkup?: unknown) {
   const response = await fetch(`${SUPABASE_URL}/functions/v1/send-telegram-message`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
     },
-    body: JSON.stringify({ telegramId, message, replyMarkup: openAppButton() }),
+    body: JSON.stringify({ telegramId, message, parseMode: "HTML", replyMarkup }),
   });
 
   if (!response.ok) {
     throw new Error(`send-telegram-message failed: ${await response.text()}`);
   }
 }
+
+interface Match {
+  id: string;
+  vacancy_id: string;
+  freelancer_telegram_id: number;
+  owner_telegram_id: number;
+}
+
+// deno-lint-ignore no-explicit-any
+type Db = any;
+
+async function fetchMatch(supabase: Db, matchId: string): Promise<Match | null> {
+  const { data } = await supabase
+    .from("job_matches")
+    .select("id, vacancy_id, freelancer_telegram_id, owner_telegram_id")
+    .eq("id", matchId)
+    .maybeSingle();
+  return data;
+}
+
+async function fetchVacancy(supabase: Db, vacancyId: string): Promise<VacancyInfo> {
+  const { data } = await supabase
+    .from("owner_vacancies")
+    .select("address, payment, marketplaces, date, start_time, end_time")
+    .eq("id", vacancyId)
+    .maybeSingle();
+  return data || {};
+}
+
+async function fetchName(supabase: Db, telegramId: number): Promise<string> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("first_name, last_name")
+    .eq("telegram_id", telegramId)
+    .maybeSingle();
+  return [data?.first_name, data?.last_name].filter(Boolean).join(" ") || "Сотрудник";
+}
+
+/**
+ * Вторую сторону смены вычисляем из самой записи, а не доверяем callback_data:
+ * иначе, подменив его, можно было бы подтвердить чужую смену или поставить
+ * оценку от чужого имени. Возвращает null, если нажавший — не участник.
+ */
+function counterpart(match: Match, actorId: number): number | null {
+  if (actorId === match.freelancer_telegram_id) return match.owner_telegram_id;
+  if (actorId === match.owner_telegram_id) return match.freelancer_telegram_id;
+  return null;
+}
+
+async function saveRating(
+  supabase: Db,
+  params: { matchId: string; fromId: number; toId: number; rating: number; comment?: string }
+) {
+  // upsert, потому что сообщение с кнопками остаётся в чате навсегда и на них
+  // могут нажать повторно — уникальный индекс (match_id, from_telegram_id).
+  await supabase.from("ratings").upsert(
+    {
+      match_id: params.matchId,
+      from_telegram_id: params.fromId,
+      to_telegram_id: params.toId,
+      rating: params.rating,
+      comment: params.comment ?? null,
+    },
+    { onConflict: "match_id,from_telegram_id" }
+  );
+}
+
+/* ── Обработчики ────────────────────────────────────────────────────────── */
+
+async function handleShiftDecision(
+  supabase: Db,
+  actorId: number,
+  matchId: string,
+  confirmed: boolean
+) {
+  const match = await fetchMatch(supabase, matchId);
+
+  // Выход подтверждает или отменяет только сам фрилансер этой смены.
+  if (!match || match.freelancer_telegram_id !== actorId) {
+    console.error(`Rejected shift decision: telegram_id=${actorId}, match=${matchId}`);
+    return;
+  }
+
+  await supabase
+    .from("job_matches")
+    .update(confirmed ? { confirmed_at: new Date().toISOString() } : { status: "cancelled" })
+    .eq("id", matchId);
+
+  const [vacancy, name] = await Promise.all([
+    fetchVacancy(supabase, match.vacancy_id),
+    fetchName(supabase, actorId),
+  ]);
+
+  if (confirmed) {
+    await sendMessage(match.owner_telegram_id, botMessages.shiftConfirmedToOwner(name, vacancy));
+    await sendMessage(actorId, botMessages.shiftConfirmedToFreelancer());
+  } else {
+    await sendMessage(match.owner_telegram_id, botMessages.shiftCancelledToOwner(name, vacancy));
+    await sendMessage(actorId, botMessages.shiftCancelledToFreelancer());
+  }
+}
+
+async function handleRating(
+  supabase: Db,
+  actorId: number,
+  matchId: string,
+  rating: number,
+  role: RaterRole
+) {
+  const match = await fetchMatch(supabase, matchId);
+  const toId = match ? counterpart(match, actorId) : null;
+
+  if (!match || toId === null) {
+    console.error(`Rejected rating: telegram_id=${actorId}, match=${matchId}`);
+    return;
+  }
+
+  // Низкая оценка без объяснения бесполезна — спрашиваем комментарий и ждём
+  // следующее текстовое сообщение от этого пользователя.
+  if (rating <= 3) {
+    await supabase
+      .from("pending_ratings")
+      .upsert({ telegram_id: actorId, match_id: matchId, rating, role }, { onConflict: "telegram_id" });
+    await sendMessage(actorId, botMessages.askComment());
+    return;
+  }
+
+  await saveRating(supabase, { matchId, fromId: actorId, toId, rating });
+  await sendMessage(actorId, botMessages.thanksRating());
+}
+
+/** Текст после низкой оценки — это комментарий к ней. */
+async function handlePendingComment(supabase: Db, actorId: number, text: string): Promise<boolean> {
+  const { data: pending } = await supabase
+    .from("pending_ratings")
+    .select("match_id, rating")
+    .eq("telegram_id", actorId)
+    .maybeSingle();
+
+  if (!pending) return false;
+
+  const match = await fetchMatch(supabase, pending.match_id);
+  const toId = match ? counterpart(match, actorId) : null;
+
+  if (match && toId !== null) {
+    await saveRating(supabase, {
+      matchId: pending.match_id,
+      fromId: actorId,
+      toId,
+      rating: pending.rating,
+      comment: text,
+    });
+  }
+
+  await supabase.from("pending_ratings").delete().eq("telegram_id", actorId);
+  await sendMessage(actorId, botMessages.thanksFeedback());
+  return true;
+}
+
+async function handleStart(supabase: Db, actorId: number, chatId: number) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("first_name")
+    .eq("telegram_id", actorId)
+    .maybeSingle();
+
+  // Зарегистрированного встречаем по имени, новому объясняем, что это за бот.
+  await sendMessage(
+    chatId,
+    profile?.first_name ? botMessages.startReturning(profile.first_name) : botMessages.start(),
+    openAppButton()
+  );
+}
+
+/* ── Точка входа ────────────────────────────────────────────────────────── */
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -51,35 +237,58 @@ Deno.serve(async (req) => {
   }
 
   try {
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-      throw new Error("Missing Supabase credentials");
-    }
-
-    const update = await req.json();
-    const message = update?.message;
-    const text: string | undefined = message?.text?.trim();
-    const chatId: number | undefined = message?.chat?.id;
-    const fromId: number | undefined = message?.from?.id;
-
-    // Интересует только /start; остальные апдейты подтверждаем и игнорируем.
-    if (!chatId || !fromId || !text?.startsWith("/start")) {
-      return ok();
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !BOT_TOKEN) {
+      throw new Error("Server misconfigured: missing credentials");
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("first_name")
-      .eq("telegram_id", fromId)
-      .maybeSingle();
+    const update = await req.json();
 
-    // Зарегистрированного встречаем по имени, новому объясняем, что это за бот.
-    await sendMessage(
-      chatId,
-      profile?.first_name ? botMessages.startReturning(profile.first_name) : botMessages.start()
-    );
+    /* Нажатие кнопки */
+    const callback = update?.callback_query;
+    if (callback) {
+      const actorId: number | undefined = callback.from?.id;
+      const data: string | undefined = callback.data;
 
-    console.log(`/start handled for telegram_id=${fromId}, registered=${Boolean(profile)}`);
+      // Отвечаем сразу: иначе на кнопке висит индикатор загрузки.
+      await answerCallback(callback.id);
+
+      if (!actorId || !data) return ok();
+
+      const [action, matchId, rating, role] = data.split(":");
+
+      if (action === "confirm_shift" && matchId) {
+        await handleShiftDecision(supabase, actorId, matchId, true);
+      } else if (action === "cancel_shift" && matchId) {
+        await handleShiftDecision(supabase, actorId, matchId, false);
+      } else if (action === "rate" && matchId && rating) {
+        await handleRating(
+          supabase,
+          actorId,
+          matchId,
+          Number(rating),
+          role === "owner" ? "owner" : "freelancer"
+        );
+      }
+
+      return ok();
+    }
+
+    /* Текстовое сообщение */
+    const message = update?.message;
+    const text: string | undefined = message?.text?.trim();
+    const chatId: number | undefined = message?.chat?.id;
+    const actorId: number | undefined = message?.from?.id;
+
+    if (!chatId || !actorId || !text) return ok();
+
+    // Явная команда важнее незакрытого комментария.
+    if (text.startsWith("/start")) {
+      await handleStart(supabase, actorId, chatId);
+      return ok();
+    }
+
+    await handlePendingComment(supabase, actorId, text);
   } catch (error) {
     console.error("Error handling Telegram update:", error);
   }

@@ -1,8 +1,11 @@
 // Тексты бота. Основаны на текстах из ветки aleksey/telegram-bot-funnel и
 // адаптированы под реальную схему: в owner_vacancies нет company_name / title /
 // metro — есть address, payment, marketplaces, date, start_time, end_time.
-// Тексты про рейтинг, статистику и фидбек не переносились: таких данных в схеме
-// нет (profiles.rating не существует), а напоминания требуют планировщика.
+//
+// Все сообщения уходят с parse_mode: HTML, поэтому КАЖДОЕ подставляемое значение
+// от пользователя (адрес, имя) обязано проходить через esc(). Без этого адрес
+// вроде «Тверская, д.1 & 3» уронит отправку, а <a href> в адресе дошёл бы
+// получателю живой ссылкой от имени бота.
 
 export interface VacancyInfo {
   address?: string | null;
@@ -14,18 +17,17 @@ export interface VacancyInfo {
 }
 
 export type Role = "employee" | "owner";
+export type RaterRole = "freelancer" | "owner";
 
 /** Прод-адрес мини-аппа. */
 export const MINI_APP_URL = "https://jobpunktbot.vercel.app";
 
-/**
- * Кнопка, открывающая мини-апп прямо из чата — она лучше, чем просить
- * пользователя куда-то пойти самому. Передаётся как replyMarkup в
- * send-telegram-message.
- */
-export const openAppButton = (url: string = MINI_APP_URL) => ({
-  inline_keyboard: [[{ text: "Открыть приложение", web_app: { url } }]],
-});
+/** Экранирование для parse_mode: HTML. */
+export const esc = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
 /** «2026-07-20» → «20 июля». Часовой пояс фиксируем, чтобы дата не съезжала. */
 const formatDate = (iso: string): string => {
@@ -34,19 +36,45 @@ const formatDate = (iso: string): string => {
   return parsed.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
 };
 
-const where = (v: VacancyInfo): string => `📍 ${v.address || "адрес не указан"}`;
+/** «09:00:00» → «09:00». */
+const formatTime = (t?: string | null): string => (t ? t.slice(0, 5) : "");
 
-/** Строка «когда» — только у временных смен, у постоянных даты нет. */
-const when = (v: VacancyInfo): string =>
-  v.date ? `\n📅 ${formatDate(v.date)}${v.start_time ? `, ${v.start_time} — ${v.end_time}` : ""}` : "";
+const where = (v: VacancyInfo) => `📍 ${esc(v.address || "адрес не указан")}`;
+const when = (v: VacancyInfo) =>
+  v.date
+    ? `\n📅 ${formatDate(v.date)}${v.start_time ? `, ${formatTime(v.start_time)} — ${formatTime(v.end_time)}` : ""}`
+    : "";
+const marketplaces = (v: VacancyInfo) =>
+  v.marketplaces?.length ? `\n📦 ${esc(v.marketplaces.join(", "))}` : "";
+const price = (v: VacancyInfo) => `\n💰 ${esc(v.payment ?? "—")} ₽`;
 
-const marketplaces = (v: VacancyInfo): string =>
-  v.marketplaces?.length ? `\n📦 ${v.marketplaces.join(", ")}` : "";
+/** Единая карточка смены — одно место, где выполняется экранирование. */
+const vacancyCard = (v: VacancyInfo) => `${where(v)}${when(v)}${marketplaces(v)}${price(v)}`;
 
-const price = (v: VacancyInfo): string => `\n💰 ${v.payment ?? "—"} ₽`;
+/* ── Кнопки ─────────────────────────────────────────────────────────────── */
 
-/** Полная карточка смены для сообщения. */
-const vacancyCard = (v: VacancyInfo): string => `${where(v)}${when(v)}${marketplaces(v)}${price(v)}`;
+/** Открывает мини-апп прямо из чата. */
+export const openAppButton = (url: string = MINI_APP_URL) => ({
+  inline_keyboard: [[{ text: "Открыть приложение", web_app: { url } }]],
+});
+
+export const confirmShiftKeyboard = (matchId: string) => ({
+  inline_keyboard: [[
+    { text: "✅ Подтверждаю выход", callback_data: `confirm_shift:${matchId}` },
+    { text: "❌ Не смогу", callback_data: `cancel_shift:${matchId}` },
+  ]],
+});
+
+export const rateKeyboard = (matchId: string, role: RaterRole) => ({
+  inline_keyboard: [
+    [1, 2, 3, 4, 5].map((n) => ({
+      text: `⭐${n}`,
+      callback_data: `rate:${matchId}:${n}:${role}`,
+    })),
+  ],
+});
+
+/* ── Сообщения ──────────────────────────────────────────────────────────── */
 
 export const botMessages = {
   /**
@@ -63,7 +91,7 @@ export const botMessages = {
 
   /** Ответ на /start тому, кто уже зарегистрирован — имя и роль мы уже знаем. */
   startReturning: (firstName: string) =>
-    `С возвращением, ${firstName} 👋
+    `С возвращением, ${esc(firstName)} 👋
 
 Всё на месте — открывай приложение.
 Я напишу, когда появятся новости по твоим откликам.`,
@@ -71,7 +99,7 @@ export const botMessages = {
   /** Поздравление после регистрации. Тексты разные — роли видят разные экраны. */
   onboarding: (firstName: string, role: Role) =>
     role === "owner"
-      ? `🎉 Готово, ${firstName}! Регистрация завершена.
+      ? `🎉 Готово, ${esc(firstName)}! Регистрация завершена.
 
 Что теперь доступно:
 📋 Мои вакансии — публикуй смены и постоянные вакансии
@@ -79,7 +107,7 @@ export const botMessages = {
 📬 Отклики — принимай или отклоняй кандидатов
 
 Я напишу сюда, как только кто-то откликнется на твою вакансию.`
-      : `🎉 Готово, ${firstName}! Регистрация завершена.
+      : `🎉 Готово, ${esc(firstName)}! Регистрация завершена.
 
 Что теперь доступно:
 📋 Подработка — отмечай дни, когда готов выйти
@@ -91,16 +119,16 @@ export const botMessages = {
 
   /** Владельцу: фрилансер откликнулся на его вакансию. */
   newApplication: (ownerFirstName: string, applicantName: string, v: VacancyInfo) =>
-    `📋 Новый отклик, ${ownerFirstName}!
+    `📋 Новый отклик, ${esc(ownerFirstName)}!
 
-${applicantName} откликнулся на твою вакансию:
+${esc(applicantName)} откликнулся на твою вакансию:
 ${vacancyCard(v)}
 
 Посмотреть и ответить — в приложении.`,
 
   /** Фрилансеру: владелец предложил ему смену. */
   newOffer: (firstName: string, v: VacancyInfo) =>
-    `📬 Тебе предложили смену, ${firstName}!
+    `📬 Тебе предложили смену, ${esc(firstName)}!
 
 ${vacancyCard(v)}
 
@@ -108,16 +136,64 @@ ${vacancyCard(v)}
 
   /** Фрилансеру: владелец принял его отклик. */
   matchAccepted: (firstName: string, v: VacancyInfo, contactUsername?: string | null) =>
-    `✅ Отлично, ${firstName}!
+    `✅ Отлично, ${esc(firstName)}!
 
 Твой отклик принят:
 ${vacancyCard(v)}
-${contactUsername ? `\nСвязаться: @${contactUsername.replace("@", "")}` : "\nКонтакт появится в приложении."}`,
+${contactUsername ? `\nСвязаться: @${esc(contactUsername.replace("@", ""))}` : "\nКонтакт появится в приложении."}`,
 
   /** Фрилансеру: отклик отклонён. */
   matchRejected: (firstName: string, v: VacancyInfo) =>
-    `😔 Жаль, ${firstName}
+    `😔 Жаль, ${esc(firstName)}
 
-Твой отклик на смену по адресу «${v.address || "без адреса"}» не прошёл.
+Твой отклик на смену по адресу «${esc(v.address || "без адреса")}» не прошёл.
 Но не расстраивайся — есть другие предложения, загляни в приложение.`,
+
+  /* ── Смена: напоминание и подтверждение ─────────────────────────────── */
+
+  /** Фрилансеру за час до начала. */
+  shiftReminder: (v: VacancyInfo) =>
+    `📋 <b>Напоминание о смене</b>
+
+${where(v)}
+📅 Сегодня, ${formatTime(v.start_time)} — ${formatTime(v.end_time)}${marketplaces(v)}${price(v)}
+
+Подтверди, что выйдешь на смену:`,
+
+  shiftConfirmedToFreelancer: () => `Отлично! Ты подтвердил выход на смену.`,
+
+  shiftConfirmedToOwner: (freelancerName: string, v: VacancyInfo) =>
+    `✅ ${esc(freelancerName)} подтвердил смену${when(v)}
+${where(v)}`,
+
+  shiftCancelledToFreelancer: () => `Смена отменена. Пожалуйста, предупреждай заранее.`,
+
+  shiftCancelledToOwner: (freelancerName: string, v: VacancyInfo) =>
+    `❌ ${esc(freelancerName)} не сможет выйти на смену${when(v)}
+${where(v)}
+
+Ищи замену!`,
+
+  /* ── Оценки ──────────────────────────────────────────────────────────── */
+
+  rateOwnerRequest: (v: VacancyInfo) =>
+    `⭐ <b>Оцени работодателя</b>
+
+${where(v)}${when(v)}
+
+Как прошла смена?`,
+
+  rateFreelancerRequest: (freelancerName: string, v: VacancyInfo) =>
+    `⭐ <b>Оцени сотрудника</b>
+
+${esc(freelancerName)}
+${where(v)}${when(v)}
+
+Как прошла смена?`,
+
+  askComment: () => `Расскажи, что пошло не так:`,
+
+  thanksRating: () => `Спасибо за оценку!`,
+
+  thanksFeedback: () => `Спасибо за отзыв!`,
 };

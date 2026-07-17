@@ -11,7 +11,15 @@ interface RoleSelectScreenProps {
 export const RoleSelectScreen = ({ onSelectRole, onBack }: RoleSelectScreenProps) => (
   <div className="screen">
     <BackButton onClick={onBack} variant="freelancer" />
-    <div className="title" style={{ textAlign: 'center', marginBottom: 2 }}>ПроПункт</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 2 }}>
+      <svg width="32" height="32" viewBox="0 0 72 72" fill="none">
+        <path d="M36 6L64 20V52L36 66L8 52V20L36 6Z" fill="#6D28D9"></path>
+        <path d="M36 6L64 20L36 34L8 20L36 6Z" fill="#8B5CF6"></path>
+        <path d="M36 34V66L8 52V20L36 34Z" fill="#5B21B6"></path>
+        <path d="M36 34V66L64 52V20L36 34Z" fill="#7C3AED"></path>
+      </svg>
+      <div className="title" style={{ textAlign: 'center', margin: 0 }}>ПроПункт</div>
+    </div>
     <div className="subtitle" style={{ textAlign: 'center', marginBottom: 32 }}>Выберите, кто вы</div>
 
     <div className="gradient-freelancer" onClick={() => onSelectRole('freelancer')} style={{ cursor: 'pointer', marginBottom: 14 }}>

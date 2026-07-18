@@ -140,7 +140,8 @@ export const ModerationDashboard = ({ onBack }: { onBack: () => void }) => {
   if (!isModerator) {
     return (
       <Screen>
-        <ScreenHeader title="🔍 Модерация" variant="owner" onBack={onBack} />
+        <div className="back-btn owner" onClick={onBack} style={{ cursor: 'pointer' }}>← Назад</div>
+        <div className="title">🔍 Модерация</div>
         <div style={{ textAlign: 'center', marginTop: 40 }}>
           <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
             ❌ Доступ запрещён
@@ -153,7 +154,8 @@ export const ModerationDashboard = ({ onBack }: { onBack: () => void }) => {
   if (loading) {
     return (
       <Screen>
-        <ScreenHeader title="🔍 Модерация" variant="owner" onBack={onBack} />
+        <div className="back-btn owner" onClick={onBack} style={{ cursor: 'pointer' }}>← Назад</div>
+        <div className="title">🔍 Модерация</div>
         <Loading />
       </Screen>
     );
@@ -161,74 +163,37 @@ export const ModerationDashboard = ({ onBack }: { onBack: () => void }) => {
 
   return (
     <Screen>
-      <ScreenHeader title="🔍 Модерация" subtitle="Проверка контента" variant="owner" onBack={onBack} />
+      <div className="back-btn owner" onClick={onBack} style={{ cursor: 'pointer' }}>← Назад</div>
+      <div className="title">🔍 Модерация</div>
+      <div className="subtitle">Проверка контента</div>
 
       {/* Вкладки */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto' }}>
-        <button
-          onClick={() => setTab('stats')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: tab === 'stats' ? '#2563EB' : '#f0f0f0',
-            color: tab === 'stats' ? 'white' : '#666',
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          📊 Статистика
-        </button>
-        <button
-          onClick={() => setTab('users')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: tab === 'users' ? '#2563EB' : '#f0f0f0',
-            color: tab === 'users' ? 'white' : '#666',
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          👤 Пользователи
-        </button>
-        <button
-          onClick={() => setTab('vacancies')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: tab === 'vacancies' ? '#2563EB' : '#f0f0f0',
-            color: tab === 'vacancies' ? 'white' : '#666',
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          📋 Вакансии
-        </button>
-        <button
-          onClick={() => setTab('suspicious')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: tab === 'suspicious' ? '#EF4444' : '#f0f0f0',
-            color: tab === 'suspicious' ? 'white' : '#666',
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          ⚠️ Подозрительные
-        </button>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 8 }}>
+        {['stats', 'users', 'vacancies', 'suspicious'].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t as Tab)}
+            className="chip"
+            style={{
+              background: (t === 'suspicious' && tab === t)
+                ? '#EF4444'
+                : tab === t
+                ? 'var(--accent-owner)'
+                : 'transparent',
+              color: (t === 'suspicious' && tab === t)
+                ? '#fff'
+                : tab === t
+                ? '#fff'
+                : 'var(--accent-owner)',
+              borderColor: t === 'suspicious' ? (tab === t ? '#EF4444' : '#DC2626') : 'var(--accent-owner)',
+            }}
+          >
+            {t === 'stats' && '📊 Статистика'}
+            {t === 'users' && '👤 Пользователи'}
+            {t === 'vacancies' && '📋 Вакансии'}
+            {t === 'suspicious' && '⚠️ Подозрительные'}
+          </button>
+        ))}
       </div>
 
       {/* СТАТИСТИКА */}

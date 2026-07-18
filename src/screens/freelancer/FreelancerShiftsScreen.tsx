@@ -274,6 +274,35 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
         <Modal title="Новая заявка" onClose={resetForm}>
           <div className="subtitle">Дата: {selectedDate.toLocaleDateString('ru')}</div>
 
+          {/* Текущие доступные смены */}
+          {shifts.length > 0 && (
+            <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f7', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#17151F' }}>📅 Ваши смены на текущий момент:</div>
+              <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+                {shifts.map((shift) => (
+                  <div
+                    key={shift.id}
+                    style={{
+                      fontSize: 11,
+                      padding: 6,
+                      marginBottom: 4,
+                      background: 'white',
+                      borderRadius: 4,
+                      border: '1px solid #e5e5e5',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, color: '#6D28D9' }}>
+                      {new Date(shift.date).toLocaleDateString('ru')} {shift.startTime}—{shift.endTime}
+                    </div>
+                    <div style={{ color: '#999', marginTop: 2 }}>
+                      {shift.marketplaces.join(', ')} • {shift.rate} ₽/ч
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <TextField label="С (время)" value={formData.startTime} onChange={(e) => setFormData((p) => ({ ...p, startTime: e.target.value }))} placeholder="09:00" />
           <TextField label="До (время)" value={formData.endTime} onChange={(e) => setFormData((p) => ({ ...p, endTime: e.target.value }))} placeholder="22:00" />
 

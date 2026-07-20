@@ -4,6 +4,7 @@ import { callFunction } from '../../lib/api';
 import { CreateResumeScreen } from './CreateResumeScreen';
 import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState } from '../../components/ui';
 import { ResumeGate } from '../../components/ResumeGate';
+import { RatingBadge } from '../../components/RatingBadge';
 
 interface Resume {
   id: string;
@@ -20,6 +21,8 @@ interface Vacancy {
   schedule?: string;
   /** Владелец вакансии. В таблице owner_vacancies это telegram_id (не owner_telegram_id). */
   telegram_id?: number;
+  owner_avg_rating: number | null;
+  owner_rating_count: number;
 }
 
 export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
@@ -128,9 +131,12 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       ) : (
         vacancies.map((vacancy) => (
           <Card key={vacancy.id} variant="freelancer">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{vacancy.address}</div>
               <Badge tone="perm-f">📌 Постоянная</Badge>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <RatingBadge avgRating={vacancy.owner_avg_rating} count={vacancy.owner_rating_count} />
             </div>
 
             {vacancy.marketplaces?.length > 0 && <div className="meta">📦 {vacancy.marketplaces.join(', ')}</div>}

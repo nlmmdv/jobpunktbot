@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
 import { triggerBotEvent } from "../_shared/notify.ts";
+import { ratingsFor, EMPTY_RATING } from "../_shared/ratings.ts";
 
 // Реальная схема прода: вакансии лежат в owner_vacancies и НЕ имеют колонки title
 // (заголовок карточки — address). Внешнего ключа job_matches -> profiles нет,
@@ -56,15 +57,25 @@ async function attachProfiles(
   const ids = [...new Set(matches.map((m) => m[idField]).filter(Boolean))];
   if (ids.length === 0) return matches;
 
-  const { data: profiles, error } = await supabase
-    .from("profiles")
-    .select("telegram_id, first_name, last_name, telegram_username, city")
-    .in("telegram_id", ids);
+  const [{ data: profiles, error }, ratings] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("telegram_id, first_name, last_name, telegram_username, city")
+      .in("telegram_id", ids),
+    ratingsFor(supabase, ids),
+  ]);
 
   if (error) throw error;
 
   const byTelegramId = new Map((profiles || []).map((p: any) => [p.telegram_id, p]));
-  return matches.map((m) => ({ ...m, profiles: byTelegramId.get(m[idField]) || null }));
+  // Рейтинг второй стороны кладём в тот же объект profiles — фронт показывает
+  // его в карточке отклика.
+  return matches.map((m) => ({
+    ...m,
+    profiles: byTelegramId.get(m[idField])
+      ? { ...byTelegramId.get(m[idField]), ...(ratings.get(m[idField]) || EMPTY_RATING) }
+      : null,
+  }));
 }
 
 Deno.serve(async (req) => {

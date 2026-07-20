@@ -1,11 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { ratingsFor, EMPTY_RATING } from "../_shared/ratings.ts";
 
 // Публичный поиск фрилансеров не требует авторизации, но не должен отдавать
 // персональные данные (телефон, telegram_id) незнакомым вызывающим — раньше
-// select("*") отдавал их всем без ограничений.
+// select("*") отдавал их всем без ограничений. telegram_id тянем ВНУТРЕННЕ
+// (для рейтинга) и вырезаем из ответа.
 const PUBLIC_COLUMNS =
   "id, first_name, last_name, city, about, photo_url, marketplaces, preferred_schedule, hourly_rate, metro_stations";
+const INTERNAL_COLUMNS = `${PUBLIC_COLUMNS}, telegram_id`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -26,7 +29,7 @@ Deno.serve(async (req) => {
 
     let query = supabase
       .from("freelancer_resumes")
-      .select(PUBLIC_COLUMNS)
+      .select(INTERNAL_COLUMNS)
       .eq("status", "active");
 
     if (city && city !== "Все") {
@@ -41,7 +44,16 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    return jsonResponse({ success: true, freelancers: freelancers || [] });
+    const rows = freelancers || [];
+    const ratings = await ratingsFor(supabase, rows.map((f: { telegram_id?: number }) => f.telegram_id));
+
+    // telegram_id вырезаем из ответа — наружу его не отдаём.
+    const withRatings = rows.map(({ telegram_id, ...f }: { telegram_id?: number }) => ({
+      ...f,
+      ...(ratings.get(telegram_id as number) || EMPTY_RATING),
+    }));
+
+    return jsonResponse({ success: true, freelancers: withRatings });
   } catch (err) {
     console.error("Error:", err);
     return jsonResponse({ success: false, error: (err as Error).message }, 500);

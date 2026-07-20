@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { callFunction, ApiError } from '../../lib/api';
 import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
 import { MetroSelector, SelectedMetroChips, metroListForCity } from '../../components/MetroSelector';
+import { RatingBadge } from '../../components/RatingBadge';
 
 interface Freelancer {
   id: string;
@@ -13,6 +14,8 @@ interface Freelancer {
   hourly_rate: number;
   metro_stations: string[];
   preferred_schedule?: string;
+  avg_rating: number | null;
+  rating_count: number;
 }
 
 interface Vacancy {
@@ -169,8 +172,11 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
       {!loading &&
         freelancers.map((freelancer) => (
           <Card key={freelancer.id} variant="owner">
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 8 }}>
-              {freelancer.first_name} {freelancer.last_name}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                {freelancer.first_name} {freelancer.last_name}
+              </div>
+              <RatingBadge avgRating={freelancer.avg_rating} count={freelancer.rating_count} />
             </div>
             {freelancer.city && <div className="meta">📍 {freelancer.city}</div>}
             {freelancer.marketplaces?.length > 0 && <div className="meta">📦 {freelancer.marketplaces.join(', ')}</div>}

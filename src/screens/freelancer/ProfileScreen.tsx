@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction, ApiError } from '../../lib/api';
+import { RatingBadge } from '../../components/RatingBadge';
 import {
   Screen,
   ScreenHeader,
@@ -39,6 +40,19 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
     about: '',
   });
   const [saving, setSaving] = useState(false);
+  const [rating, setRating] = useState<{ avg_rating: number | null; rating_count: number }>({
+    avg_rating: null,
+    rating_count: 0,
+  });
+
+  useEffect(() => {
+    if (!profile?.telegram_id) return;
+    callFunction<{ avg_rating: number | null; rating_count: number }>('get-rating', {
+      telegramId: profile.telegram_id,
+    })
+      .then((r) => setRating({ avg_rating: r.avg_rating, rating_count: r.rating_count }))
+      .catch((err) => console.error('Failed to load rating:', err));
+  }, [profile?.telegram_id]);
 
   const handleSave = async () => {
     if (!profile?.telegram_id) return;
@@ -86,6 +100,9 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
           </div>
           <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
             {profile.first_name} {profile.last_name}
+          </div>
+          <div style={{ textAlign: 'center', marginBottom: 4 }}>
+            <RatingBadge avgRating={rating.avg_rating} count={rating.rating_count} />
           </div>
           <div className="subtitle" style={{ textAlign: 'center' }}>
             {roleLabel}

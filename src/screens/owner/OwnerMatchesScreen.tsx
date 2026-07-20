@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction } from '../../lib/api';
 import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState, type BadgeTone } from '../../components/ui';
+import { RatingBadge } from '../../components/RatingBadge';
 
 interface Match {
   id: string;
@@ -21,6 +22,8 @@ interface Match {
     last_name?: string;
     telegram_username?: string;
     city?: string;
+    avg_rating?: number | null;
+    rating_count?: number;
   };
 }
 
@@ -115,8 +118,11 @@ export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
           <Card key={match.id} variant="owner">
             {status && <Badge tone={status.tone}>{status.text}</Badge>}
 
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-              {match.profiles?.first_name} {match.profiles?.last_name}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {match.profiles?.first_name} {match.profiles?.last_name}
+              </div>
+              <RatingBadge avgRating={match.profiles?.avg_rating ?? null} count={match.profiles?.rating_count ?? 0} />
             </div>
 
             <div className="meta">📍 {match.profiles?.city || 'Город не указан'}</div>

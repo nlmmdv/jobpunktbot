@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { ratingFor } from "../_shared/ratings.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -41,7 +42,9 @@ Deno.serve(async (req) => {
         throw error;
       }
 
-      return jsonResponse({ success: true, resume: resume || null });
+      const rating = await ratingFor(supabase, userId);
+
+      return jsonResponse({ success: true, resume: resume || null, ...rating });
     }
 
     if (action === "create") {

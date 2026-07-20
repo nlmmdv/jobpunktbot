@@ -20,9 +20,16 @@ export const getTelegramUser = () => {
   if (webApp?.initDataUnsafe?.user) {
     return webApp.initDataUnsafe.user;
   }
-  // Fallback для тестирования в браузере
+  // Fallback для тестирования в браузере (администратор)
   if (import.meta.env.DEV) {
-    return { id: 123456789, first_name: 'Test', last_name: 'User', username: 'testuser' };
+    return {
+      id: 406489240,
+      is_bot: false,
+      first_name: 'Admin',
+      last_name: 'Test',
+      username: 'admintest',
+      language_code: 'ru'
+    };
   }
   return null;
 };

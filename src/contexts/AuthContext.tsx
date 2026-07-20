@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { callFunction, ApiError } from '../lib/api';
 import { getInitData, waitForTelegramReady } from '../lib/telegram';
 
-export type AuthState = 'loading' | 'no_profile' | 'freelancer' | 'owner';
+export type AuthState = 'loading' | 'no_profile' | 'freelancer' | 'owner' | 'administrator';
 
 export interface Profile {
   id: string;
@@ -10,7 +10,7 @@ export interface Profile {
   first_name: string;
   last_name?: string;
   phone?: string;
-  role: 'owner' | 'admin' | 'employee';
+  role: 'owner' | 'admin' | 'administrator' | 'employee';
   city?: string;
   status?: string;
   created_at?: string;
@@ -64,8 +64,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('✅ User authenticated, role:', authProfile.role);
       setProfile(authProfile);
 
-      const authState =
-        authProfile.role === 'owner' || authProfile.role === 'admin' ? 'owner' : 'freelancer';
+      let authState: AuthState;
+      if (authProfile.role === 'admin' || authProfile.role === 'administrator') {
+        authState = 'administrator';
+      } else if (authProfile.role === 'owner') {
+        authState = 'owner';
+      } else {
+        authState = 'freelancer';
+      }
       setState(authState);
     } catch (err) {
       console.error('Auth refresh error:', err);

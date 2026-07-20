@@ -19,6 +19,9 @@ const FreelancerMainScreen = lazy(() =>
 const OwnerMainScreen = lazy(() =>
   import('./screens/OwnerMainScreen').then((m) => ({ default: m.OwnerMainScreen }))
 );
+const AdminMainScreen = lazy(() =>
+  import('./screens/AdminMainScreen').then((m) => ({ default: m.AdminMainScreen }))
+);
 
 type RegistrationStep = 'landing' | 'registration' | 'freelancer_reg' | 'owner_reg';
 
@@ -67,6 +70,12 @@ function App() {
   if (state === 'owner') {
     return <Suspense fallback={fullscreenLoader('Загрузка приложения...')}>
       <OwnerMainScreen />
+    </Suspense>;
+  }
+
+  if (state === 'administrator') {
+    return <Suspense fallback={fullscreenLoader('Загрузка приложения...')}>
+      <AdminMainScreen />
     </Suspense>;
   }
 

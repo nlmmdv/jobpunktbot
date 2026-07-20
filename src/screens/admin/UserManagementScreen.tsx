@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Screen, Button, TextField, Loading } from '../../components/ui';
+import { callFunction } from '../../lib/api';
 
 interface User {
   id: string;
@@ -10,6 +11,20 @@ interface User {
   city?: string;
   status: string;
   created_at: string;
+}
+
+interface Complaint {
+  id: string;
+  reason: string;
+  description?: string;
+  status: string;
+  created_at: string;
+  reported_by: {
+    id: string;
+    first_name: string;
+    last_name?: string;
+    telegram_id: number;
+  };
 }
 
 export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
@@ -49,6 +64,42 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [blockDuration, setBlockDuration] = useState('1');
   const [showBlockModal, setShowBlockModal] = useState(false);
+  const [complaints, setComplaints] = useState<Record<string, Complaint[]>>({
+    // Тестовые жалобы на первого пользователя
+    '1': [
+      {
+        id: 'complaint-1',
+        reason: 'Плохое поведение',
+        description: 'Грубо разговаривал с клиентом, не выполнил работу как договорено',
+        status: 'open',
+        created_at: '2026-07-20T14:30:00',
+        reported_by: {
+          id: '2',
+          first_name: 'Мария',
+          last_name: 'Сидорова',
+          telegram_id: 987654321,
+        },
+      },
+      {
+        id: 'complaint-2',
+        reason: 'Опоздание',
+        description: 'Опоздал на 30 минут, не предупредил',
+        status: 'resolved',
+        created_at: '2026-07-19T10:15:00',
+        reported_by: {
+          id: '3',
+          first_name: 'Анна',
+          last_name: 'Коваленко',
+          telegram_id: 555666777,
+        },
+      },
+    ],
+    // Нет жалоб на других пользователей
+    '2': [],
+    '3': [],
+  });
+  const [showComplaintsModal, setShowComplaintsModal] = useState(false);
+  const [complaintsLoading, setComplaintsLoading] = useState(false);
 
   // Поиск пользователей
   const filteredUsers = useMemo(() => {
@@ -85,6 +136,39 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
   const handleWarnUser = (userId: string) => {
     const user = users.find((u) => u.id === userId);
     alert(`⚠️ Предупреждение отправлено пользователю ${user?.first_name}`);
+  };
+
+  // Загрузка жалоб на пользователя
+  const loadComplaints = async (userId: string) => {
+    if (userId in complaints) {
+      setSelectedUserId(userId);
+      setShowComplaintsModal(true);
+      return;
+    }
+
+    setComplaintsLoading(true);
+    try {
+      const data = await callFunction<{ complaints: Complaint[] }>('get-user-complaints', {
+        user_id: userId,
+      });
+      setComplaints((prev) => ({
+        ...prev,
+        [userId]: data.complaints,
+      }));
+      setSelectedUserId(userId);
+      setShowComplaintsModal(true);
+    } catch (err) {
+      console.error('Error loading complaints:', err);
+      // В DEV режиме просто показываем пустой список если функция недоступна
+      setComplaints((prev) => ({
+        ...prev,
+        [userId]: [],
+      }));
+      setSelectedUserId(userId);
+      setShowComplaintsModal(true);
+    } finally {
+      setComplaintsLoading(false);
+    }
   };
 
   return (
@@ -134,19 +218,33 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                   📍 {user.city} • {user.role} • Зарегистрирован: {user.created_at}
                 </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                    display: 'inline-block',
-                    marginTop: 6,
-                    background: user.status === 'active' ? '#DCFCE7' : '#FEE2E2',
-                    color: user.status === 'active' ? '#16A34A' : '#DC2626',
-                    fontWeight: 600,
-                  }}
-                >
-                  {user.status === 'active' ? '✅ Активен' : '🚫 Заблокирован'}
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      background: user.status === 'active' ? '#DCFCE7' : '#FEE2E2',
+                      color: user.status === 'active' ? '#16A34A' : '#DC2626',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {user.status === 'active' ? '✅ Активен' : '🚫 Заблокирован'}
+                  </div>
+                  {complaints[user.id]?.length > 0 && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        padding: '4px 8px',
+                        borderRadius: 4,
+                        background: '#FEF3C7',
+                        color: '#D97706',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⚠️ Жалоб: {complaints[user.id].length}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -182,6 +280,29 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
                 </button>
 
                 <button
+                  onClick={() => loadComplaints(user.id)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #F59E0B',
+                    background: '#FFFBEB',
+                    color: '#D97706',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseOver={(e) => {
+                    (e.target as HTMLButtonElement).style.background = '#FEF3C7';
+                  }}
+                  onMouseOut={(e) => {
+                    (e.target as HTMLButtonElement).style.background = '#FFFBEB';
+                  }}
+                >
+                  📋 Жалобы ({complaints[user.id]?.length || 0})
+                </button>
+
+                <button
                   onClick={() => handleBlockUser(user.id)}
                   style={{
                     padding: '8px 12px',
@@ -208,6 +329,119 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
           ))
         )}
       </div>
+
+      {/* Модальное окно жалоб */}
+      {showComplaintsModal && selectedUser && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            overflowY: 'auto',
+          }}
+          onClick={() => setShowComplaintsModal(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: 12,
+              padding: 20,
+              maxWidth: 400,
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>
+              📋 Жалобы на {selectedUser.first_name}
+            </div>
+
+            {complaintsLoading ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 20 }}>
+                Загрузка...
+              </div>
+            ) : complaints[selectedUser.id]?.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 20 }}>
+                Нет жалоб на этого пользователя
+              </div>
+            ) : (
+              <div style={{ marginBottom: 16 }}>
+                {complaints[selectedUser.id]?.map((complaint) => (
+                  <div
+                    key={complaint.id}
+                    style={{
+                      background: '#F9FAFB',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: 8,
+                      padding: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                      {complaint.reported_by.first_name} {complaint.reported_by.last_name || ''}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                      ID: {complaint.reported_by.telegram_id}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                      Причина: <strong>{complaint.reason}</strong>
+                    </div>
+                    {complaint.description && (
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6, fontStyle: 'italic' }}>
+                        "{complaint.description}"
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: '#6B7280' }}>
+                      {new Date(complaint.created_at).toLocaleString('ru')}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        marginTop: 6,
+                        padding: '3px 6px',
+                        borderRadius: 4,
+                        display: 'inline-block',
+                        background: complaint.status === 'open' ? '#FEF3C7' : '#DCFCE7',
+                        color: complaint.status === 'open' ? '#D97706' : '#16A34A',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {complaint.status === 'open' ? '🔔 Открыта' : '✅ Закрыта'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setShowComplaintsModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border-card-owner)',
+                  background: 'white',
+                  color: 'var(--text-primary)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Модальное окно блокировки */}
       {showBlockModal && selectedUser && (

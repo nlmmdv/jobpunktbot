@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 import { UserManagementScreen } from './admin/UserManagementScreen';
+import { CompanyManagementScreen } from './admin/CompanyManagementScreen';
 
-type Tab = 'menu' | 'users' | 'vacancies' | 'system' | 'profile';
+type Tab = 'menu' | 'users' | 'companies' | 'vacancies' | 'system' | 'profile';
 
 const ADMIN_MENU: MenuItem<Tab>[] = [
   { screen: 'users', icon: '👥', label: 'Управление пользователями', wide: true },
+  { screen: 'companies', icon: '🏢', label: 'Управление компаниями', wide: true },
   { screen: 'vacancies', icon: '📋', label: 'Управление вакансиями', wide: true },
   { screen: 'system', icon: '⚙️', label: 'Системные настройки', wide: true },
 ];
@@ -18,6 +20,10 @@ export const AdminMainScreen = () => {
 
   if (screen === 'users') {
     return <UserManagementScreen onBack={back} />;
+  }
+
+  if (screen === 'companies') {
+    return <CompanyManagementScreen onBack={back} />;
   }
 
   if (screen === 'vacancies') {

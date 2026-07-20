@@ -36,19 +36,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setState('loading');
 
     try {
-      // DEV MODE: Skip auth and show admin screen directly
+      // DEV MODE: Check for role parameter in URL
       if (import.meta.env.DEV) {
-        const devProfile: Profile = {
-          id: 'dev-admin-1',
-          telegram_id: 406489240,
-          first_name: 'Admin',
-          last_name: 'Test',
-          role: 'administrator',
-          status: 'active',
-        };
-        console.log('✅ DEV MODE: Logged in as administrator');
+        const params = new URLSearchParams(window.location.search);
+        const devRole = params.get('devRole') || 'administrator';
+
+        let devProfile: Profile;
+        let authState: AuthState;
+
+        if (devRole === 'freelancer') {
+          devProfile = {
+            id: 'dev-freelancer-1',
+            telegram_id: 123456789,
+            first_name: 'Иван',
+            last_name: 'Фрилансер',
+            role: 'employee',
+            city: 'Москва',
+            status: 'active',
+          };
+          authState = 'freelancer';
+          console.log('✅ DEV MODE: Logged in as freelancer');
+        } else if (devRole === 'owner') {
+          devProfile = {
+            id: 'dev-owner-1',
+            telegram_id: 111222333,
+            first_name: 'Петр',
+            last_name: 'Владелец',
+            role: 'owner',
+            city: 'Москва',
+            status: 'active',
+          };
+          authState = 'owner';
+          console.log('✅ DEV MODE: Logged in as owner');
+        } else {
+          devProfile = {
+            id: 'dev-admin-1',
+            telegram_id: 406489240,
+            first_name: 'Admin',
+            last_name: 'Test',
+            role: 'administrator',
+            status: 'active',
+          };
+          authState = 'administrator';
+          console.log('✅ DEV MODE: Logged in as administrator');
+        }
+
         setProfile(devProfile);
-        setState('administrator');
+        setState(authState);
         return;
       }
 

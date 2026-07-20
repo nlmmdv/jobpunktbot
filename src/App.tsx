@@ -1,6 +1,6 @@
 import { useState, Suspense, lazy } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import { Screen, Loading } from './components/ui';
+import { Screen, Loading, Button } from './components/ui';
 import { WelcomeScreen } from './screens/WelcomeScreen';
 import { RoleSelectScreen } from './screens/RoleSelectScreen';
 
@@ -23,7 +23,7 @@ const OwnerMainScreen = lazy(() =>
 type RegistrationStep = 'landing' | 'registration' | 'freelancer_reg' | 'owner_reg';
 
 function App() {
-  const { state, error } = useAuth();
+  const { state, error, refreshAuth } = useAuth();
   const [regStep, setRegStep] = useState<RegistrationStep>('landing');
 
   const handleStartRegistration = () => {
@@ -55,6 +55,26 @@ function App() {
   // Loading state
   if (state === 'loading') {
     return fullscreenLoader('Загрузка...');
+  }
+
+  // Сервер не ответил — существующего пользователя не гоним на регистрацию.
+  if (state === 'error') {
+    return (
+      <Screen center>
+        <div style={{ textAlign: 'center', padding: '0 24px' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📡</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+            Не удалось войти
+          </div>
+          <div className="subtitle" style={{ marginBottom: 20 }}>
+            {error || 'Проверьте соединение и попробуйте ещё раз.'}
+          </div>
+          <Button style={{ maxWidth: 240 }} onClick={() => refreshAuth()}>
+            Повторить
+          </Button>
+        </div>
+      </Screen>
+    );
   }
 
   // Authenticated state

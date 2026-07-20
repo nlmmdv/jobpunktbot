@@ -4,6 +4,7 @@ import { callFunction } from '../../lib/api';
 import { CreateResumeScreen } from './CreateResumeScreen';
 import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState } from '../../components/ui';
 import { ResumeGate } from '../../components/ResumeGate';
+import { ComplaintModal } from '../../components/ComplaintModal';
 
 interface Resume {
   id: string;
@@ -28,6 +29,9 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateResume, setShowCreateResume] = useState(false);
+  const [complaintModalOpen, setComplaintModalOpen] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>('');
 
   useEffect(() => {
     if (profile?.telegram_id) {
@@ -146,12 +150,44 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
 
             <div className="price freelancer" style={{ marginBottom: 10 }}>💰 {vacancy.payment} ₽</div>
 
-            <Button small onClick={() => handleApply(vacancy.id, vacancy.telegram_id)}>
-              Откликнуться
-            </Button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Button small onClick={() => handleApply(vacancy.id, vacancy.telegram_id)} style={{ flex: 1 }}>
+                Откликнуться
+              </Button>
+              <button
+                onClick={() => {
+                  // Используем telegram_id как ID компании для жалоб
+                  setSelectedCompanyId(String(vacancy.telegram_id || ''));
+                  setSelectedCompanyName('ПВЗ ' + vacancy.address);
+                  setComplaintModalOpen(true);
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #E5E7EB',
+                  background: 'white',
+                  color: '#6366F1',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                title="Пожаловаться на компанию"
+              >
+                🚩
+              </button>
+            </div>
           </Card>
         ))
       )}
+
+      <ComplaintModal
+        isOpen={complaintModalOpen}
+        onClose={() => setComplaintModalOpen(false)}
+        complaintType="company"
+        targetId={selectedCompanyId}
+        targetName={selectedCompanyName}
+      />
     </Screen>
   );
 };

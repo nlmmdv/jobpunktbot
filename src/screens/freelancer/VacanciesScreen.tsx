@@ -44,6 +44,13 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
+      // DEV MODE: Show mock vacancies directly
+      if (import.meta.env.DEV) {
+        setResume({ id: 'dev-resume', status: 'active' });
+        loadVacancies();
+        return;
+      }
+
       const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
         action: 'get',
         telegramId: profile.telegram_id,
@@ -61,6 +68,31 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
 
   const loadVacancies = async () => {
     try {
+      // DEV MODE: Return mock vacancies
+      if (import.meta.env.DEV) {
+        setVacancies([
+          {
+            id: 'vacancy-1',
+            address: 'ул. Тверская, 5',
+            type: 'permanent',
+            marketplaces: ['WB', 'Ozon'],
+            payment: 40000,
+            metro_stations: ['Охотный ряд'],
+            telegram_id: 111222333,
+          },
+          {
+            id: 'vacancy-2',
+            address: 'Невский пр., 100',
+            type: 'permanent',
+            marketplaces: ['Яндекс Маркет'],
+            payment: 35000,
+            metro_stations: ['Невский пр-т'],
+            telegram_id: 444555666,
+          },
+        ]);
+        return;
+      }
+
       const data = await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
         type: 'permanent',
         city: profile?.city || 'Все',

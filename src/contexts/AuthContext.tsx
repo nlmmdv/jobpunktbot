@@ -39,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // DEV MODE: Check for role parameter in URL
       if (import.meta.env.DEV) {
         const params = new URLSearchParams(window.location.search);
-        const devRole = params.get('devRole') || 'administrator';
+        const devRole = params.get('devRole') || 'freelancer';
 
         let devProfile: Profile;
         let authState: AuthState;

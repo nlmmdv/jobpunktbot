@@ -36,6 +36,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setState('loading');
 
     try {
+      // DEV MODE: Skip auth and show admin screen directly
+      if (import.meta.env.DEV) {
+        const devProfile: Profile = {
+          id: 'dev-admin-1',
+          telegram_id: 406489240,
+          first_name: 'Admin',
+          last_name: 'Test',
+          role: 'administrator',
+          status: 'active',
+        };
+        console.log('✅ DEV MODE: Logged in as administrator');
+        setProfile(devProfile);
+        setState('administrator');
+        return;
+      }
+
       await waitForTelegramReady();
 
       const initData = getInitData();

@@ -47,7 +47,27 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       // DEV MODE: Show mock vacancies directly
       if (import.meta.env.DEV) {
         setResume({ id: 'dev-resume', status: 'active' });
-        loadVacancies();
+        setVacancies([
+          {
+            id: 'vacancy-1',
+            address: 'ул. Тверская, 5',
+            type: 'permanent',
+            marketplaces: ['WB', 'Ozon'],
+            payment: 40000,
+            metro_stations: ['Охотный ряд'],
+            telegram_id: 111222333,
+          },
+          {
+            id: 'vacancy-2',
+            address: 'Невский пр., 100',
+            type: 'permanent',
+            marketplaces: ['Яндекс Маркет'],
+            payment: 35000,
+            metro_stations: ['Невский пр-т'],
+            telegram_id: 444555666,
+          },
+        ]);
+        setLoading(false);
         return;
       }
 
@@ -57,11 +77,11 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       });
       if (data.resume) {
         setResume(data.resume);
-        loadVacancies();
+        await loadVacancies();
       }
+      setLoading(false);
     } catch (err) {
       console.error('Failed to load resume:', err);
-    } finally {
       setLoading(false);
     }
   };

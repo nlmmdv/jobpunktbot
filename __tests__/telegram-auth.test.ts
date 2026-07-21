@@ -43,6 +43,35 @@ function devModeInitData(userId: number): string {
   p.set('hash', 'dev-mode');
   return p.toString();
 }
+
+/**
+ * Реальный Telegram (Bot API 7.10+) присылает ещё поля query_id и signature.
+ * Свой `hash` он считает по всем полям КРОМЕ hash и signature — signature
+ * относится к отдельной Ed25519-проверке для третьих сторон.
+ */
+async function makeRealisticInitData(
+  botToken: string,
+  user: Record<string, unknown>,
+  authDate: number
+): Promise<string> {
+  const signed = new URLSearchParams();
+  signed.set('query_id', 'AAGYiDoYAAAAAJiIOhgXZ4dt');
+  signed.set('user', JSON.stringify(user));
+  signed.set('auth_date', String(authDate));
+
+  const dcs = Array.from(signed.entries())
+    .map(([k, v]) => `${k}=${v}`)
+    .sort()
+    .join('\n');
+  const secret = await hmac(new TextEncoder().encode('WebAppData'), botToken);
+  const hash = toHex(await hmac(new Uint8Array(secret), dcs));
+
+  const out = new URLSearchParams(signed);
+  out.set('signature', 'Ksh4gPaZc0k_ed25519_signature_example');
+  out.set('hash', hash);
+  return out.toString();
+}
+
 function shimDeno(env: Record<string, string | undefined>) {
   (globalThis as any).Deno = { env: { get: (k: string) => env[k] } };
 }
@@ -58,6 +87,15 @@ describe('verifyTelegramInitData', () => {
     const initData = await makeSignedInitData('bot-token', { id: 7, first_name: 'A' }, now());
     const user = await verifyTelegramInitData(initData, 'bot-token');
     expect(user.id).toBe(7);
+  });
+
+
+  it('accepts real Telegram initData that carries a signature field', async () => {
+    // Регрессия: signature попадал в строку для хеша, и подпись не сходилась —
+    // вход ломался у всех на свежих клиентах Telegram.
+    const initData = await makeRealisticInitData('bot-token', { id: 406489240, first_name: 'Н' }, now());
+    const user = await verifyTelegramInitData(initData, 'bot-token');
+    expect(user.id).toBe(406489240);
   });
 
   it('rejects a tampered payload (wrong signature)', async () => {

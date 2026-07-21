@@ -43,6 +43,11 @@ export async function verifyTelegramInitData(
     throw new Error("initData: отсутствует hash");
   }
   params.delete("hash");
+  // Bot API 7.10+ добавил поле signature (Ed25519-подпись для сторонней
+  // проверки). Свой hash Telegram считает БЕЗ него, поэтому и мы обязаны его
+  // исключить — иначе строка расходится и вход ломается у всех, у кого клиент
+  // Telegram уже присылает это поле.
+  params.delete("signature");
 
   const dataCheckString = Array.from(params.entries())
     .map(([key, value]) => `${key}=${value}`)

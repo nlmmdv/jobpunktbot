@@ -98,6 +98,27 @@ describe('verifyTelegramInitData', () => {
     expect(user.id).toBe(406489240);
   });
 
+
+  it('accepts initData whose hash was computed WITH the signature field', async () => {
+    // Документация не даёт однозначного ответа, входит ли signature в строку для
+    // hash, поэтому верификация обязана принимать оба варианта.
+    const params = new URLSearchParams();
+    params.set('query_id', 'AAGYiDoYAAAAAJiIOhibKCoD');
+    params.set('user', JSON.stringify({ id: 406489240 }));
+    params.set('auth_date', String(now()));
+    params.set('signature', 'Ksh4gPaZc0k_ed25519_signature_example');
+
+    const dcs = Array.from(params.entries())
+      .map(([k, v]) => `${k}=${v}`)
+      .sort()
+      .join('\n');
+    const secret = await hmac(new TextEncoder().encode('WebAppData'), 'bot-token');
+    params.set('hash', toHex(await hmac(new Uint8Array(secret), dcs)));
+
+    const user = await verifyTelegramInitData(params.toString(), 'bot-token');
+    expect(user.id).toBe(406489240);
+  });
+
   it('rejects a tampered payload (wrong signature)', async () => {
     const initData = await makeSignedInitData('bot-token', { id: 7 }, now());
     const tampered = initData.replace('%22id%22%3A7', '%22id%22%3A999');

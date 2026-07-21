@@ -5,16 +5,18 @@ import { VacanciesScreen } from './freelancer/VacanciesScreen';
 import { AvailableShiftsScreen } from './freelancer/AvailableShiftsScreen';
 import { FreelancerMatchesScreen } from './freelancer/FreelancerMatchesScreen';
 import { ProfileScreen } from './freelancer/ProfileScreen';
+import { FreelancerMyShiftsScreen } from './freelancer/FreelancerMyShiftsScreen';
 import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 
-type Tab = 'menu' | 'shifts' | 'vacancies' | 'available' | 'matches' | 'profile';
+type Tab = 'menu' | 'shifts' | 'vacancies' | 'available' | 'matches' | 'myshifts' | 'profile';
 
 const MENU: MenuItem<Tab>[] = [
   { screen: 'shifts', icon: '📋', label: 'Подработка' },
   { screen: 'vacancies', icon: '💼', label: 'Вакансии' },
   { screen: 'available', icon: '⏰', label: 'Замены' },
   { screen: 'matches', icon: '📬', label: 'Отклики' },
-  { screen: 'profile', icon: '👤', label: 'Профиль', wide: true },
+  { screen: 'myshifts', icon: '📅', label: 'Мои смены' },
+  { screen: 'profile', icon: '👤', label: 'Профиль' },
 ];
 
 export const FreelancerMainScreen = () => {
@@ -28,6 +30,7 @@ export const FreelancerMainScreen = () => {
   if (screen === 'available') return <AvailableShiftsScreen onBack={back} />;
   if (screen === 'shifts') return <FreelancerShiftsScreen onBack={back} />;
   if (screen === 'matches') return <FreelancerMatchesScreen onBack={back} />;
+  if (screen === 'myshifts') return <FreelancerMyShiftsScreen onBack={back} />;
 
   return (
     <Screen>

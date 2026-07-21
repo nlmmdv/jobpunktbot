@@ -4,15 +4,17 @@ import { SearchEmployeesScreen } from './owner/SearchEmployeesScreen';
 import { MyVacanciesScreen } from './owner/MyVacanciesScreen';
 import { OwnerMatchesScreen } from './owner/OwnerMatchesScreen';
 import { ProfileScreen } from './freelancer/ProfileScreen';
+import { OwnerMyShiftsScreen } from './owner/OwnerMyShiftsScreen';
 import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 
-type Tab = 'menu' | 'search' | 'vacancies' | 'matches' | 'profile';
+type Tab = 'menu' | 'search' | 'vacancies' | 'matches' | 'myshifts' | 'profile';
 
 const MENU: MenuItem<Tab>[] = [
   { screen: 'search', icon: '🔍', label: 'Поиск сотрудников' },
   { screen: 'vacancies', icon: '📋', label: 'Мои вакансии' },
   { screen: 'matches', icon: '📬', label: 'Отклики' },
-  { screen: 'profile', icon: '👤', label: 'Профиль' },
+  { screen: 'myshifts', icon: '📅', label: 'Мои смены' },
+  { screen: 'profile', icon: '👤', label: 'Профиль', wide: true },
 ];
 
 export const OwnerMainScreen = () => {
@@ -25,6 +27,7 @@ export const OwnerMainScreen = () => {
   if (screen === 'vacancies') return <MyVacanciesScreen onBack={back} />;
   if (screen === 'search') return <SearchEmployeesScreen onBack={back} />;
   if (screen === 'matches') return <OwnerMatchesScreen onBack={back} />;
+  if (screen === 'myshifts') return <OwnerMyShiftsScreen onBack={back} />;
 
   return (
     <Screen>

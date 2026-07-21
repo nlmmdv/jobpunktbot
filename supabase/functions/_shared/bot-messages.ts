@@ -168,6 +168,13 @@ ${where(v)}`,
 
   shiftCancelledToFreelancer: () => `Смена отменена. Пожалуйста, предупреждай заранее.`,
 
+  /** Фрилансеру: смену отменил работодатель. */
+  shiftCancelledByOwner: (v: VacancyInfo) =>
+    `❌ Смена отменена работодателем${when(v)}
+${where(v)}
+
+Загляни в приложение — есть другие смены.`,
+
   shiftCancelledToOwner: (freelancerName: string, v: VacancyInfo) =>
     `❌ ${esc(freelancerName)} не сможет выйти на смену${when(v)}
 ${where(v)}

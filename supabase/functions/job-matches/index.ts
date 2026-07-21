@@ -277,6 +277,31 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, matches: withProfiles });
     }
 
+    // LIST: подтверждённые (принятые) временные смены — экран «Мои смены».
+    // Фильтруем по telegramId из подписи, поэтому чужие смены не отдаём даже
+    // если подставить другую роль.
+    if (action === "list-shifts") {
+      const asOwner = data.role === "owner";
+      const selfField = asOwner ? "owner_telegram_id" : "freelancer_telegram_id";
+      const otherField = asOwner ? "freelancer_telegram_id" : "owner_telegram_id";
+
+      const { data: matches, error } = await supabase
+        .from("job_matches")
+        .select(
+          `id, vacancy_id, status, confirmed_at, created_at,
+           owner_telegram_id, freelancer_telegram_id,
+           owner_vacancies!inner ( ${VACANCY_FIELDS}, marketplaces, type )`
+        )
+        .eq(selfField, telegramId)
+        .eq("status", "accepted")
+        .eq("owner_vacancies.type", "temporary");
+
+      if (error) throw error;
+
+      const withProfiles = await attachProfiles(supabase, matches || [], otherField);
+      return jsonResponse({ success: true, matches: withProfiles });
+    }
+
     // ACCEPT: respond to a match
     if (action === "accept") {
       const { id } = data;

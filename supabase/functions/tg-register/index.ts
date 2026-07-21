@@ -4,6 +4,57 @@ import { requireTelegramId } from "../_shared/telegram-auth.ts";
 import { triggerBotEvent } from "../_shared/notify.ts";
 import { assertRateLimit, RateLimitError } from "../_shared/rate-limit.ts";
 
+const ADMIN_CHAT_ID = -5402800630n;
+const BOT_TOKEN = Deno.env.get("TELEGRAM_JOBBOT_TOKEN");
+
+async function notifyAdminNewUser({
+  role,
+  first_name,
+  last_name,
+  phone,
+  city,
+  telegram_username,
+  telegramId,
+}: {
+  role: string;
+  first_name: string;
+  last_name?: string | null;
+  phone: string;
+  city?: string | null;
+  telegram_username?: string | null;
+  telegramId: number;
+}): Promise<void> {
+  if (!BOT_TOKEN) {
+    console.error("Admin notification skipped: TELEGRAM_JOBBOT_TOKEN не установлен");
+    return;
+  }
+
+  try {
+    const roleText = role === "owner" ? "👔 Новый владелец" : "🆕 Новый фрилансер";
+    const text = [
+      roleText,
+      `👤 ${first_name} ${last_name || ""}`.trim(),
+      `📱 ${phone}`,
+      city ? `📍 ${city}` : null,
+      telegram_username ? `💬 @${telegram_username}` : "💬 нет username",
+      `🆔 ${telegramId}`,
+      `📅 ${new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: Number(ADMIN_CHAT_ID), text }),
+    });
+
+    console.log(`Admin notification sent for new user ${telegramId}`);
+  } catch (err) {
+    console.error("Failed to send admin notification:", err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -85,6 +136,17 @@ Deno.serve(async (req) => {
 
     // Роль передаём явно: онбординг у сотрудника и владельца разный.
     await triggerBotEvent({ type: "onboarding", data: { telegram_id: telegramId, role } });
+
+    // Отправляем уведомление в админ-группу
+    await notifyAdminNewUser({
+      role,
+      first_name,
+      last_name,
+      phone,
+      city,
+      telegram_username,
+      telegramId,
+    });
 
     return jsonResponse({ success: true, profile }, 201);
   } catch (err) {

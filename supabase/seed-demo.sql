@@ -46,3 +46,21 @@ VALUES
 -- ── УДАЛИТЬ ВСЁ ДЕМО (одной командой) ───────────────────────────────────────
 -- DELETE FROM public.owner_vacancies    WHERE telegram_id BETWEEN 990000001 AND 990000099;
 -- DELETE FROM public.freelancer_resumes WHERE telegram_id BETWEEN 990000001 AND 990000099;
+
+-- ── ДЕМО: заявки на замены (freelancer_shifts) ─────────────────────────────
+-- Даты относительные, поэтому всегда в будущем. telegram_id те же, что у резюме.
+INSERT INTO public.freelancer_shifts (telegram_id, date, start_time, end_time, rate, marketplaces, metro)
+VALUES
+  (990000001, CURRENT_DATE + 1, '09:00', '18:00', 450, ARRAY['WB']::text[], ARRAY['Арбатская','Сокольники']::text[]),
+  (990000002, CURRENT_DATE + 2, '10:00', '22:00', 500, ARRAY['WB','Ozon']::text[], ARRAY['Киевская','Арбатская']::text[]),
+  (990000003, CURRENT_DATE + 2, '09:00', '20:00', 480, ARRAY['Ozon']::text[], ARRAY['Маяковская','Фрунзенская']::text[]),
+  (990000004, CURRENT_DATE + 3, '12:00', '23:00', 520, ARRAY['Яндекс Маркет']::text[], ARRAY['Смоленская','Арбатская']::text[]),
+  (990000005, CURRENT_DATE + 4, '08:00', '17:00', 470, ARRAY['WB','Ozon']::text[], ARRAY['Маяковская','Звенигородская']::text[]),
+  (990000006, CURRENT_DATE + 5, '10:00', '19:00', 430, ARRAY['WB']::text[], ARRAY['Арбатская','Аэропорт']::text[]),
+  (990000007, CURRENT_DATE + 6, '09:00', '21:00', 550, ARRAY['Ozon','Яндекс Маркет']::text[], ARRAY['Арбатская','Динамо']::text[]),
+  (990000008, CURRENT_DATE + 7, '08:00', '20:00', 600, ARRAY['WB','Ozon']::text[], ARRAY['Кировский завод','Пушкинская']::text[]),
+  (990000009, CURRENT_DATE + 9, '11:00', '20:00', 460, ARRAY['WB']::text[], ARRAY['Красносельская','Чистые пруды']::text[]),
+  (990000010, CURRENT_DATE + 12, '09:00', '18:00', 490, ARRAY['Ozon']::text[], ARRAY['Парк Победы','Площадь Ленина']::text[]);
+
+-- Удаление демо-замен:
+-- DELETE FROM public.freelancer_shifts WHERE telegram_id BETWEEN 990000001 AND 990000099;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
+import { callFunction, errorText } from '../../lib/api';
 import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState, type BadgeTone } from '../../components/ui';
 import { RatingBadge } from '../../components/RatingBadge';
 
@@ -68,7 +68,7 @@ export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
       loadMatches();
     } catch (err) {
       console.error('Failed to accept:', err);
-      alert('❌ Ошибка при принятии предложения');
+      alert(`❌ ${errorText(err, 'Ошибка при принятии предложения')}`);
     }
   };
 
@@ -78,7 +78,7 @@ export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
       loadMatches();
     } catch (err) {
       console.error('Failed to reject:', err);
-      alert('❌ Ошибка при отклонении');
+      alert(`❌ ${errorText(err, 'Ошибка при отклонении')}`);
     }
   };
 

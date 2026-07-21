@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
+import { callFunction, errorText } from '../../lib/api';
 import { CreateResumeScreen } from './CreateResumeScreen';
 import { Screen, ScreenHeader, Card, Button, TextField, Label, Chip, SectionTitle, Loading, Modal } from '../../components/ui';
 import { ResumeGate } from '../../components/ResumeGate';
-import { MetroSelector, SelectedMetroChips, metroStationName } from '../../components/MetroSelector';
+import { MetroSelector, SelectedMetroChips, metroStationName, metroListForCity } from '../../components/MetroSelector';
 
 interface Shift {
   id: string;
@@ -98,6 +98,9 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
   const [showMetroSelector, setShowMetroSelector] = useState(false);
   const [selectedMetro, setSelectedMetro] = useState<Set<string>>(new Set());
   const [showCreateResume, setShowCreateResume] = useState(false);
+  // Заявка, открытая по клику на занятый день, и id редактируемой заявки.
+  const [viewShift, setViewShift] = useState<Shift | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const shiftsWithDates = new Set(shifts.map((s) => s.date));
 
@@ -150,19 +153,54 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
 
   const resetForm = () => {
     setShowModal(false);
+    setEditingId(null);
     setSelectedMetro(new Set());
     setFormData({ startTime: '09:00', endTime: '22:00', marketplaces: [], rate: 0 });
   };
 
-  const handleAddShift = async () => {
+  /** В заявке метро хранится названиями, а выбор — по id: переводим обратно. */
+  const metroIdsFromNames = (names: string[]) =>
+    new Set(
+      names
+        .map((name) => metroListForCity(userCity).find((st) => st.name === name)?.id)
+        .filter((id): id is string => Boolean(id))
+    );
+
+  /** На дату уже есть заявка — показываем её, иначе форму создания. */
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+    const iso = date.toISOString().split('T')[0];
+    const existing = shifts.find((sh) => sh.date === iso);
+    if (existing) {
+      setViewShift(existing);
+    } else {
+      setShowModal(true);
+    }
+  };
+
+  const startEditing = (shift: Shift) => {
+    setViewShift(null);
+    setEditingId(shift.id);
+    setFormData({
+      startTime: shift.startTime || '09:00',
+      endTime: shift.endTime || '22:00',
+      marketplaces: shift.marketplaces || [],
+      rate: shift.rate || 0,
+    });
+    setSelectedMetro(metroIdsFromNames(shift.metro || []));
+    setShowModal(true);
+  };
+
+  const handleSaveShift = async () => {
     if (!profile?.telegram_id) return;
     const dateStr = selectedDate.toISOString().split('T')[0];
     const metroNames = Array.from(selectedMetro).map((id) => metroStationName(userCity, id)).filter(Boolean);
 
     try {
       const data = await callFunction<{ shift: any }>('freelancer-shifts', {
-        action: 'create',
+        action: editingId ? 'update' : 'create',
         telegramId: profile.telegram_id,
+        ...(editingId ? { id: editingId } : {}),
         date: dateStr,
         start_time: formData.startTime,
         end_time: formData.endTime,
@@ -171,7 +209,7 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
         metro: metroNames,
       });
       if (data.shift) {
-        setShifts([...shifts, {
+        const saved: Shift = {
           id: data.shift.id,
           date: data.shift.date,
           startTime: data.shift.start_time,
@@ -179,11 +217,16 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
           marketplaces: data.shift.marketplaces || [],
           rate: data.shift.rate,
           metro: data.shift.metro || [],
-        }]);
+        };
+        setShifts((prev) =>
+          editingId ? prev.map((sh) => (sh.id === saved.id ? saved : sh)) : [...prev, saved]
+        );
         resetForm();
       }
     } catch (err) {
-      console.error('Failed to create shift:', err);
+      console.error('Failed to save shift:', err);
+      // Лимит «одна заявка на дату» приходит текстом с сервера — показываем его.
+      alert(errorText(err, 'Не удалось сохранить заявку'));
     }
   };
 
@@ -212,8 +255,10 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
         id: shiftId,
       }, { method: 'DELETE' });
       setShifts(shifts.filter((s) => s.id !== shiftId));
+      setViewShift(null);
     } catch (err) {
       console.error('Failed to delete shift:', err);
+      alert(errorText(err, 'Не удалось удалить заявку'));
     }
   };
 
@@ -247,7 +292,7 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
       <ScreenHeader title="Подработка" subtitle={`Город: ${userCity}`} variant="freelancer" onBack={onBack} />
 
       <Calendar
-        onDateSelect={(date) => { setSelectedDate(date); setShowModal(true); }}
+        onDateSelect={handleDateSelect}
         shiftsWithDates={shiftsWithDates}
       />
 
@@ -271,7 +316,7 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
       )}
 
       {showModal && !showMetroSelector && (
-        <Modal title="Новая заявка" onClose={resetForm}>
+        <Modal title={editingId ? 'Редактировать заявку' : 'Новая заявка'} onClose={resetForm}>
           <div className="subtitle">Дата: {selectedDate.toLocaleDateString('ru')}</div>
 
           <TextField label="С (время)" value={formData.startTime} onChange={(e) => setFormData((p) => ({ ...p, startTime: e.target.value }))} placeholder="09:00" />
@@ -299,8 +344,25 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
             </div>
           )}
 
-          <Button onClick={handleAddShift} style={{ marginBottom: 8 }}>Создать заявку</Button>
+          <Button onClick={handleSaveShift} style={{ marginBottom: 8 }}>
+            {editingId ? 'Сохранить' : 'Создать заявку'}
+          </Button>
           <Button tone="secondary" onClick={resetForm}>Отмена</Button>
+        </Modal>
+      )}
+
+      {viewShift && (
+        <Modal title={`Заявка на ${new Date(viewShift.date).toLocaleDateString('ru')}`} onClose={() => setViewShift(null)}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', marginBottom: 8 }}>
+            {viewShift.startTime} — {viewShift.endTime}
+          </div>
+          {viewShift.marketplaces.length > 0 && <div className="meta">📦 {viewShift.marketplaces.join(', ')}</div>}
+          {viewShift.metro.length > 0 && <div className="meta">🚇 {viewShift.metro.join(', ')}</div>}
+          <div className="price freelancer" style={{ marginBottom: 16 }}>{viewShift.rate} ₽/час</div>
+
+          <Button onClick={() => startEditing(viewShift)} style={{ marginBottom: 8 }}>✏️ Редактировать</Button>
+          <Button tone="danger" onClick={() => handleDeleteShift(viewShift.id)} style={{ marginBottom: 8 }}>🗑 Удалить</Button>
+          <Button tone="secondary" onClick={() => setViewShift(null)}>Закрыть</Button>
         </Modal>
       )}
 

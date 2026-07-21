@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
+import { callFunction, errorText } from '../../lib/api';
 import { CreateResumeScreen } from './CreateResumeScreen';
 import { Screen, ScreenHeader, Card, Button, Label, Chip, Badge, Loading, EmptyState, Modal } from '../../components/ui';
 import { ResumeGate } from '../../components/ResumeGate';
@@ -200,7 +200,7 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
       loadVacancies();
     } catch (err) {
       console.error('Failed to apply:', err);
-      alert('❌ Ошибка при отправке отклика');
+      alert(`❌ ${errorText(err, 'Ошибка при отправке отклика')}`);
     }
   };
 

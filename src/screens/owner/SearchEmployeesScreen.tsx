@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { callFunction, ApiError } from '../../lib/api';
+import { callFunction, ApiError, errorText } from '../../lib/api';
 import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
 import { MetroSelector, SelectedMetroChips, metroListForCity } from '../../components/MetroSelector';
 import { RatingBadge } from '../../components/RatingBadge';
@@ -96,7 +96,7 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
       setShowOfferModal(true);
     } catch (err) {
       console.error('Failed to load vacancies:', err);
-      alert('❌ Ошибка при загрузке вакансий');
+      alert(`❌ ${errorText(err, 'Ошибка при загрузке вакансий')}`);
     }
   };
 
@@ -115,7 +115,7 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
       alert('✅ Предложение отправлено!');
     } catch (err) {
       console.error('Failed to send offer:', err);
-      alert('❌ Ошибка при отправке предложения');
+      alert(`❌ ${errorText(err, 'Ошибка при отправке предложения')}`);
     }
   };
 

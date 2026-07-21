@@ -13,7 +13,7 @@ import {
   Modal,
   type Variant,
 } from '../../components/ui';
-import { CITIES_LIST } from '../../constants';
+import { CITIES_LIST, TEXT_LIMITS } from '../../constants';
 
 interface ProfileScreenProps {
   onBack: () => void;
@@ -152,6 +152,7 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
           <TextArea
             variant={variant}
             label="О себе"
+            maxLength={TEXT_LIMITS.ABOUT}
             value={formData.about}
             onChange={(e) => setFormData({ ...formData, about: e.target.value })}
             placeholder="Расскажите о своем опыте..."

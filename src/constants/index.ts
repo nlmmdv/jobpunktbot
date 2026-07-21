@@ -94,6 +94,17 @@ export const VALIDATION = {
   MAX_NAME_LENGTH: 50,
 };
 
+// Лимиты длины текста. Должны совпадать с TEXT_LIMITS в
+// supabase/functions/_shared/limits.ts — бэкенд обрезает по тем же значениям.
+export const TEXT_LIMITS = {
+  /** «О себе» в резюме и профиле */
+  ABOUT: 500,
+  /** Описание вакансии */
+  DESCRIPTION: 1000,
+  /** Комментарий к оценке (вводится в боте) */
+  COMMENT: 300,
+};
+
 // Button Colors
 export const BUTTON_COLORS = {
   primary: COLORS.primaryFreelancer,

@@ -3,6 +3,19 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
 import { triggerBotEvent } from "../_shared/notify.ts";
 import { ratingsFor, EMPTY_RATING } from "../_shared/ratings.ts";
+import { assertRateLimit, RateLimitError } from "../_shared/rate-limit.ts";
+import { COUNT_LIMITS, LimitError } from "../_shared/limits.ts";
+
+/** Начало сегодняшнего дня по Москве — по нему считаем суточный лимит. */
+function startOfTodayMoscow(): string {
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return `${date}T00:00:00+03:00`;
+}
 
 // Реальная схема прода: вакансии лежат в owner_vacancies и НЕ имеют колонки title
 // (заголовок карточки — address). Внешнего ключа job_matches -> profiles нет,
@@ -102,6 +115,8 @@ Deno.serve(async (req) => {
       throw new Error("Missing Supabase credentials");
     }
 
+    assertRateLimit(telegramId);
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // CREATE: freelancer responds to vacancy or owner offers vacancy
@@ -142,6 +157,33 @@ Deno.serve(async (req) => {
 
       if (!ownerId || !freelancerId) {
         return jsonResponse({ success: false, error: "Missing required fields" }, 400);
+      }
+
+      if (initiated_by === "freelancer") {
+        const { count, error: countError } = await supabase
+          .from("job_matches")
+          .select("id", { count: "exact", head: true })
+          .eq("freelancer_telegram_id", freelancerId)
+          .eq("status", "pending");
+
+        if (countError) throw countError;
+        if ((count ?? 0) >= COUNT_LIMITS.freelancerPendingMatches) {
+          throw new LimitError(
+            `Максимум ${COUNT_LIMITS.freelancerPendingMatches} активных откликов. Дождитесь ответа или отмените старые.`
+          );
+        }
+      } else {
+        const { count, error: countError } = await supabase
+          .from("job_matches")
+          .select("id", { count: "exact", head: true })
+          .eq("owner_telegram_id", ownerId)
+          .eq("initiated_by", "owner")
+          .gte("created_at", startOfTodayMoscow());
+
+        if (countError) throw countError;
+        if ((count ?? 0) >= COUNT_LIMITS.ownerOffersPerDay) {
+          throw new LimitError(`Максимум ${COUNT_LIMITS.ownerOffersPerDay} предложений в день`);
+        }
       }
 
       const { data: match, error } = await supabase
@@ -279,6 +321,13 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ success: false, error: "Unknown action" }, 400);
   } catch (err) {
+    // Лимиты — ожидаемый ответ пользователю, а не сбой сервера.
+    if (err instanceof LimitError) {
+      return jsonResponse({ success: false, error: err.message }, 409);
+    }
+    if (err instanceof RateLimitError) {
+      return jsonResponse({ success: false, error: err.message }, 429);
+    }
     console.error("Error:", err);
     return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }

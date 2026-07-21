@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { assertRateLimit, RateLimitError } from "../_shared/rate-limit.ts";
+import { clampText, COUNT_LIMITS, LimitError, TEXT_LIMITS } from "../_shared/limits.ts";
 
 // Таблица в проде — owner_vacancies (не vacancies), владелец в ней — telegram_id
 // (не owner_telegram_id). Колонок title/employment_type/hourly_rate/updated_at нет.
@@ -24,6 +26,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
     }
 
+    assertRateLimit(telegramId);
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -36,12 +40,23 @@ Deno.serve(async (req) => {
     if (action === "create") {
       const { type, description, address, city, date, start_time, end_time, schedule, payment, marketplaces, metro_stations } = data;
 
+      const { count, error: countError } = await supabase
+        .from(TABLE)
+        .select("id", { count: "exact", head: true })
+        .eq("telegram_id", telegramId)
+        .eq("status", "active");
+
+      if (countError) throw countError;
+      if ((count ?? 0) >= COUNT_LIMITS.ownerVacancies) {
+        throw new LimitError(`Максимум ${COUNT_LIMITS.ownerVacancies} активных вакансий`);
+      }
+
       const { data: vacancy, error } = await supabase
         .from(TABLE)
         .insert({
           telegram_id: telegramId,
           type: type || "permanent",
-          description: description || null,
+          description: clampText(description, TEXT_LIMITS.description) || null,
           address: address || null,
           city: city || null,
           date: date || null,
@@ -91,7 +106,7 @@ Deno.serve(async (req) => {
         .from(TABLE)
         .update({
           type: type || undefined,
-          description: description || undefined,
+          description: description ? clampText(description, TEXT_LIMITS.description) : undefined,
           address: address || undefined,
           city: city || undefined,
           date: date || undefined,
@@ -128,6 +143,13 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ success: false, error: "Unknown action" }, 400);
   } catch (err) {
+    // Лимиты — ожидаемый ответ пользователю, а не сбой сервера.
+    if (err instanceof LimitError) {
+      return jsonResponse({ success: false, error: err.message }, 409);
+    }
+    if (err instanceof RateLimitError) {
+      return jsonResponse({ success: false, error: err.message }, 429);
+    }
     console.error("Error:", err);
     return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }

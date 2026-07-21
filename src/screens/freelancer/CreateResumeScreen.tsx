@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { callFunction, ApiError } from '../../lib/api';
 import { Screen, ScreenHeader, Button, TextField, TextArea, Label, Chip, ErrorText } from '../../components/ui';
 import { MetroSelector, SelectedMetroChips, metroStationName } from '../../components/MetroSelector';
+import { TEXT_LIMITS } from '../../constants';
 
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 
@@ -109,6 +110,7 @@ export const CreateResumeScreen = ({ onDone, onCancel }: CreateResumeScreenProps
 
       <TextArea
         label="О себе"
+        maxLength={TEXT_LIMITS.ABOUT}
         value={about}
         onChange={(e) => setAbout(e.target.value)}
         placeholder="Опыт работы, преимущества..."

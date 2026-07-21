@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
 import { triggerBotEvent } from "../_shared/notify.ts";
+import { assertRateLimit, RateLimitError } from "../_shared/rate-limit.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,6 +20,8 @@ Deno.serve(async (req) => {
       console.error("Auth error:", authErr);
       return jsonResponse({ success: false, error: (authErr as Error).message }, 401);
     }
+
+    assertRateLimit(telegramId);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -85,6 +88,10 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ success: true, profile }, 201);
   } catch (err) {
+    // Лимиты — ожидаемый ответ пользователю, а не сбой сервера.
+    if (err instanceof RateLimitError) {
+      return jsonResponse({ success: false, error: err.message }, 429);
+    }
     console.error("Error:", err);
     return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { botMessages, openAppButton, type RaterRole, type VacancyInfo } from "../_shared/bot-messages.ts";
+import { clampText, TEXT_LIMITS } from "../_shared/limits.ts";
 
 // Вебхук Telegram: сюда прилетают апдейты от бота — /start, нажатия кнопок
 // (callback_query) и текстовые ответы.
@@ -193,7 +194,7 @@ async function handlePendingComment(supabase: Db, actorId: number, text: string)
       fromId: actorId,
       toId,
       rating: pending.rating,
-      comment: text,
+      comment: clampText(text, TEXT_LIMITS.comment) as string,
     });
   }
 

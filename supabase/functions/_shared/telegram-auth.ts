@@ -58,7 +58,8 @@ export async function verifyTelegramInitData(
 
   const authDate = Number(params.get("auth_date") || "0");
   if (!authDate || Date.now() / 1000 - authDate > maxAgeSeconds) {
-    throw new Error("initData: срок действия истёк");
+    // Обновить initData можно только переоткрыв мини-апп — так и пишем.
+    throw new Error("Сессия устарела. Закройте и откройте приложение заново.");
   }
 
   const userRaw = params.get("user");
@@ -110,6 +111,8 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
   } catch (err) {
     console.error("Signature verification failed:", err);
     console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
-    throw new Error("initData: неверная подпись");
+    // Причину НЕ подменяем: истёкший auth_date раньше показывался как «неверная
+    // подпись», и было непонятно, что достаточно переоткрыть приложение.
+    throw err instanceof Error ? err : new Error("initData: неверная подпись");
   }
 }

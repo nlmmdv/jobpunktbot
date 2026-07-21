@@ -59,19 +59,27 @@ function App() {
 
   // Сервер не ответил — существующего пользователя не гоним на регистрацию.
   if (state === 'error') {
+    // Протухший initData обновляется только переоткрытием мини-аппа, поэтому
+    // «Повторить» тут ничего не даст — не показываем кнопку, которая не работает.
+    const needsReopen = /устарел|подпись/i.test(error || '');
+
     return (
       <Screen center>
         <div style={{ textAlign: 'center', padding: '0 24px' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📡</div>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>{needsReopen ? '🔄' : '📡'}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-            Не удалось войти
+            {needsReopen ? 'Сессия устарела' : 'Не удалось войти'}
           </div>
           <div className="subtitle" style={{ marginBottom: 20 }}>
-            {error || 'Проверьте соединение и попробуйте ещё раз.'}
+            {needsReopen
+              ? 'Закройте приложение и откройте его заново из бота — это обновит вход.'
+              : error || 'Проверьте соединение и попробуйте ещё раз.'}
           </div>
-          <Button style={{ maxWidth: 240 }} onClick={() => refreshAuth()}>
-            Повторить
-          </Button>
+          {!needsReopen && (
+            <Button style={{ maxWidth: 240 }} onClick={() => refreshAuth()}>
+              Повторить
+            </Button>
+          )}
         </div>
       </Screen>
     );

@@ -24,6 +24,28 @@ interface Resume {
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 
+// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
+const MOCK_SHIFTS: Shift[] = [
+  {
+    id: 'dev-shift-1',
+    date: new Date().toISOString().split('T')[0],
+    startTime: '09:00',
+    endTime: '18:00',
+    marketplaces: ['WB', 'Ozon'],
+    rate: 500,
+    metro: ['Охотный ряд'],
+  },
+  {
+    id: 'dev-shift-2',
+    date: new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0],
+    startTime: '10:00',
+    endTime: '19:00',
+    marketplaces: ['Яндекс Маркет'],
+    rate: 450,
+    metro: ['Тверская'],
+  },
+];
+
 const Calendar = ({ onDateSelect, shiftsWithDates }: {
   onDateSelect: (date: Date) => void;
   shiftsWithDates: Set<string>;
@@ -110,6 +132,14 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
+      // DEV MODE: резюме и смены-заглушки, без обращения к бэкенду.
+      if (import.meta.env.DEV) {
+        setResume({ id: 'dev-resume', status: 'active' });
+        setShifts(MOCK_SHIFTS);
+        setLoading(false);
+        return;
+      }
+
       const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
         action: 'get',
         telegramId: profile.telegram_id,
@@ -128,6 +158,11 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
   const loadShifts = async () => {
     if (!profile?.telegram_id) return;
     try {
+      if (import.meta.env.DEV) {
+        setShifts(MOCK_SHIFTS);
+        return;
+      }
+
       const data = await callFunction<{ shifts: any[] }>('freelancer-shifts', {
         action: 'list',
         telegramId: profile.telegram_id,

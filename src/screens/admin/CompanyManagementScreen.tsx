@@ -30,7 +30,7 @@ interface CompanyComplaint {
 
 export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [companies] = useState<Company[]>([
+  const [companies, setCompanies] = useState<Company[]>([
     {
       id: '1',
       telegram_id: 111222333,
@@ -126,42 +126,46 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
     setShowBlockModal(true);
   };
 
+  // Пометить компанию заблокированной в локальном списке, чтобы бейдж
+  // «Активна» сразу сменился на «Заблокирована» без перезагрузки.
+  const markCompanyBlocked = (companyId: string) => {
+    setCompanies((prev) =>
+      prev.map((c) => (c.id === companyId ? { ...c, status: 'blocked' } : c))
+    );
+  };
+
   const confirmBlock = async () => {
-    if (selectedCompanyId) {
-      try {
-        if (blockType === 'temporary') {
-          const durationMap: Record<string, number> = {
-            '1': 60,
-            '24': 1440,
-            '7': 10080,
-          };
-          const durationMinutes = durationMap[blockDuration] || 60;
-          const durationText =
-            blockDuration === '1' ? 'час' : blockDuration === '24' ? 'день' : 'неделю';
+    if (!selectedCompanyId) return;
+    const companyId = selectedCompanyId;
+    const companyName = selectedCompany?.organization_name;
 
-          await callFunction<{ block: { id: string } }>('block-company', {
-            blocked_company_id: selectedCompanyId,
-            duration_minutes: durationMinutes,
-            reason: 'Временная блокировка администратором',
-          });
+    const durationMap: Record<string, number> = { '1': 60, '24': 1440, '7': 10080 };
+    const durationText =
+      blockDuration === '1' ? 'час' : blockDuration === '24' ? 'день' : 'неделю';
 
-          alert(`✅ ${selectedCompany?.organization_name} заблокирована на ${durationText}`);
-        } else {
-          await callFunction<{ block: { id: string } }>('block-company', {
-            blocked_company_id: selectedCompanyId,
-            duration_minutes: 0,
-            reason: 'Полная постоянная блокировка администратором',
-          });
-
-          alert(`✅ ${selectedCompany?.organization_name} перманентно заблокирована`);
-        }
-        setShowBlockModal(false);
-      } catch (err) {
-        console.error('Error blocking:', err);
-        alert(
-          `❌ Ошибка при блокировке: ${err instanceof Error ? err.message : 'Unknown error'}`
-        );
+    try {
+      // В DEV Edge Functions недоступны — обновляем только локальное состояние.
+      if (!import.meta.env.DEV) {
+        await callFunction<{ block: { id: string } }>('block-company', {
+          blocked_company_id: companyId,
+          duration_minutes: blockType === 'temporary' ? durationMap[blockDuration] || 60 : 0,
+          reason:
+            blockType === 'temporary'
+              ? 'Временная блокировка администратором'
+              : 'Полная постоянная блокировка администратором',
+        });
       }
+
+      markCompanyBlocked(companyId);
+      alert(
+        blockType === 'temporary'
+          ? `✅ ${companyName} заблокирована на ${durationText}`
+          : `✅ ${companyName} перманентно заблокирована`
+      );
+      setShowBlockModal(false);
+    } catch (err) {
+      console.error('Error blocking:', err);
+      alert(`❌ Ошибка при блокировке: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -358,52 +362,55 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
                   📋 Жалобы ({complaints[company.id]?.length || 0})
                 </button>
 
-                <button
-                  onClick={() => handleBlockCompany(company.id, 'temporary')}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: '#FEE2E2',
-                    color: '#DC2626',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseOver={(e) => {
-                    (e.target as HTMLButtonElement).style.background = '#FECACA';
-                  }}
-                  onMouseOut={(e) => {
-                    (e.target as HTMLButtonElement).style.background = '#FEE2E2';
-                  }}
-                >
-                  ⏱️ Временная блокировка
-                </button>
+                {company.status === 'active' && (
+                  <>
+                    <button
+                      onClick={() => handleBlockCompany(company.id, 'temporary')}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: '#FEE2E2',
+                        color: '#DC2626',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseOver={(e) => {
+                        (e.target as HTMLButtonElement).style.background = '#FECACA';
+                      }}
+                      onMouseOut={(e) => {
+                        (e.target as HTMLButtonElement).style.background = '#FEE2E2';
+                      }}
+                    >
+                      ⏱️ Временная блокировка
+                    </button>
 
-                <button
-                  onClick={() => handleBlockCompany(company.id, 'permanent')}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: '#991B1B',
-                    color: 'white',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseOver={(e) => {
-                    (e.target as HTMLButtonElement).style.background = '#7F1D1D';
-                  }}
-                  onMouseOut={(e) => {
-                    (e.target as HTMLButtonElement).style.background = '#991B1B';
-                  }}
-                >
-                  🚫 Заблокировать
-                </button>
-
+                    <button
+                      onClick={() => handleBlockCompany(company.id, 'permanent')}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: '#991B1B',
+                        color: 'white',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseOver={(e) => {
+                        (e.target as HTMLButtonElement).style.background = '#7F1D1D';
+                      }}
+                      onMouseOut={(e) => {
+                        (e.target as HTMLButtonElement).style.background = '#991B1B';
+                      }}
+                    >
+                      🚫 Заблокировать
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))

@@ -24,6 +24,32 @@ interface Vacancy {
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 const CITIES = ['Москва', 'Санкт-Петербург', 'Все'];
 
+// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
+const MOCK_FREELANCERS: Freelancer[] = [
+  {
+    id: 'dev-fl-1',
+    first_name: 'Иван',
+    last_name: 'Петров',
+    city: 'Москва',
+    about: 'Опытный сотрудник ПВЗ, работаю быстро и аккуратно.',
+    marketplaces: ['WB', 'Ozon'],
+    hourly_rate: 500,
+    metro_stations: ['Охотный ряд'],
+    preferred_schedule: '5/2',
+  },
+  {
+    id: 'dev-fl-2',
+    first_name: 'Мария',
+    last_name: 'Сидорова',
+    city: 'Москва',
+    about: 'Ответственная, есть опыт работы с выдачей заказов.',
+    marketplaces: ['Яндекс Маркет'],
+    hourly_rate: 450,
+    metro_stations: ['Тверская'],
+    preferred_schedule: '2/2',
+  },
+];
+
 export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
   const [selectedCity, setSelectedCity] = useState('Москва');
   const [selectedMarketplaces, setSelectedMarketplaces] = useState<Set<string>>(new Set());
@@ -45,10 +71,12 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
     setLoading(true);
     setError('');
     try {
-      const data = await callFunction<{ freelancers: Freelancer[] }>('search-freelancers', {
-        city: selectedCity === 'Все' ? 'Все' : selectedCity,
-        marketplace: selectedMarketplaces.size > 0 ? Array.from(selectedMarketplaces)[0] : 'Все',
-      });
+      const data = import.meta.env.DEV
+        ? { freelancers: MOCK_FREELANCERS }
+        : await callFunction<{ freelancers: Freelancer[] }>('search-freelancers', {
+            city: selectedCity === 'Все' ? 'Все' : selectedCity,
+            marketplace: selectedMarketplaces.size > 0 ? Array.from(selectedMarketplaces)[0] : 'Все',
+          });
 
       // Бэкенд не фильтрует по метро — делаем это на клиенте.
       // metro_stations на сервере хранятся как названия станций, а selectedMetro — id.

@@ -30,6 +30,31 @@ const STATUS: Record<string, { tone: BadgeTone; text: string }> = {
   rejected: { tone: 'rejected', text: 'Отклонён ❌' },
 };
 
+// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
+const MOCK_MATCHES: Match[] = [
+  {
+    id: 'dev-omatch-1',
+    vacancy_id: 'dev-own-vac-1',
+    freelancer_telegram_id: 123456789,
+    status: 'pending',
+    initiated_by: 'freelancer',
+    created_at: new Date().toISOString(),
+    owner_vacancies: { id: 'dev-own-vac-1', address: 'ул. Тверская, 5', payment: 40000 },
+    profiles: { first_name: 'Иван', last_name: 'Петров', telegram_username: 'ivan_work', city: 'Москва' },
+  },
+  {
+    id: 'dev-omatch-2',
+    vacancy_id: 'dev-own-vac-2',
+    freelancer_telegram_id: 987654321,
+    status: 'accepted',
+    initiated_by: 'owner',
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    responded_at: new Date().toISOString(),
+    owner_vacancies: { id: 'dev-own-vac-2', address: 'Невский пр., 100', payment: 3000 },
+    profiles: { first_name: 'Мария', last_name: 'Сидорова', telegram_username: 'maria_work', city: 'Москва' },
+  },
+];
+
 export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
   const { profile } = useAuth();
   const [tab, setTab] = useState<'incoming' | 'sent'>('incoming');
@@ -40,6 +65,12 @@ export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
+      if (import.meta.env.DEV) {
+        setMatches(MOCK_MATCHES);
+        setLoading(false);
+        return;
+      }
+
       const data = await callFunction<{ matches: Match[] }>('job-matches', {
         action: 'list-for-owner',
       });

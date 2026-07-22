@@ -27,6 +27,34 @@ interface Resume {
 
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 
+// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
+const MOCK_TEMPORARY_VACANCIES: Vacancy[] = [
+  {
+    id: 'dev-temp-1',
+    address: 'ул. Тверская, 5',
+    type: 'temporary',
+    date: new Date().toISOString().split('T')[0],
+    start_time: '09:00',
+    end_time: '18:00',
+    marketplaces: ['WB', 'Ozon'],
+    payment: 2500,
+    metro_stations: ['Охотный ряд'],
+    telegram_id: 111222333,
+  },
+  {
+    id: 'dev-temp-2',
+    address: 'Невский пр., 100',
+    type: 'temporary',
+    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    start_time: '10:00',
+    end_time: '20:00',
+    marketplaces: ['Яндекс Маркет'],
+    payment: 3000,
+    metro_stations: ['Невский пр-т'],
+    telegram_id: 444555666,
+  },
+];
+
 const ScrollPicker = ({ items, value, onChange }: { items: string[]; value: string; onChange: (val: string) => void }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemHeight = 44;
@@ -134,15 +162,23 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
     if (resume) {
       loadVacancies();
     }
-    // selectedMetro тоже используется внутри loadVacancies для фильтрации —
-    // без него в зависимостях выбор станции метро не перезапускал загрузку.
+    // resume в зависимостях: первая загрузка вакансий должна произойти сразу,
+    // как только резюме получено. selectedMetro тоже используется внутри
+    // loadVacancies для фильтрации — без него выбор станции не перезапускал загрузку.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMarketplaces, selectedMetro, minDate, minTime, maxTime]);
+  }, [resume, selectedMarketplaces, selectedMetro, minDate, minTime, maxTime]);
 
   const loadResume = async () => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
+      // DEV MODE: активное резюме-заглушка, чтобы пропустить ResumeGate.
+      if (import.meta.env.DEV) {
+        setResume({ id: 'dev-resume', status: 'active' });
+        setLoading(false);
+        return;
+      }
+
       const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
         action: 'get',
         telegramId: profile.telegram_id,
@@ -157,10 +193,13 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
 
   const loadVacancies = async () => {
     try {
-      const data = await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
-        type: 'temporary',
-        city: userCity,
-      });
+      // DEV MODE: срочные вакансии-заглушки.
+      const data = import.meta.env.DEV
+        ? { vacancies: MOCK_TEMPORARY_VACANCIES }
+        : await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
+            type: 'temporary',
+            city: userCity,
+          });
 
       let filtered = data.vacancies || [];
       if (minDate) filtered = filtered.filter((v) => v.date >= minDate);

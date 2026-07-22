@@ -19,6 +19,54 @@ interface CompletedShift {
   total_earnings: number;
 }
 
+// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
+const MOCK_HISTORY: CompletedShift[] = [
+  {
+    id: 'shift-1',
+    company_name: 'ПВЗ Тверская',
+    location_address: 'ул. Тверская, 5, Москва',
+    start_time: '09:00',
+    end_time: '18:00',
+    hourly_rate: 500,
+    date: '2024-07-20',
+    status: 'completed',
+    owner_name: 'Петр Владелец',
+    owner_id: 'owner-1',
+    owner_telegram_username: 'pvz_owner',
+    total_hours: 9,
+    total_earnings: 4500,
+  },
+  {
+    id: 'shift-2',
+    company_name: 'ПВЗ Невский',
+    location_address: 'Невский пр., 100, СПб',
+    start_time: '10:00',
+    end_time: '19:00',
+    hourly_rate: 450,
+    date: '2024-07-19',
+    status: 'completed',
+    owner_name: 'Иван Петров',
+    owner_id: 'owner-2',
+    owner_telegram_username: 'ivan_pvz',
+    total_hours: 9,
+    total_earnings: 4050,
+  },
+  {
+    id: 'shift-3',
+    company_name: 'ПВЗ Красные Ворота',
+    location_address: 'пл. Красных Ворот, 1, Москва',
+    start_time: '08:00',
+    end_time: '17:00',
+    hourly_rate: 550,
+    date: '2024-07-18',
+    status: 'cancelled',
+    owner_name: 'Мария Сидорова',
+    owner_id: 'owner-3',
+    total_hours: 0,
+    total_earnings: 0,
+  },
+];
+
 export const ShiftsHistoryScreen = ({ onBack }: { onBack: () => void }) => {
   const { profile } = useAuth();
   const [shifts, setShifts] = useState<CompletedShift[]>([]);
@@ -36,6 +84,13 @@ export const ShiftsHistoryScreen = ({ onBack }: { onBack: () => void }) => {
   const loadHistory = async () => {
     setLoading(true);
     try {
+      // DEV MODE: история смен-заглушка, без обращения к бэкенду.
+      if (import.meta.env.DEV) {
+        setShifts(MOCK_HISTORY);
+        setLoading(false);
+        return;
+      }
+
       if (!profile?.id) throw new Error('No profile');
       const data = await callFunction<{ shifts: CompletedShift[] }>('shifts-history', {
         user_id: profile.id,
@@ -44,55 +99,6 @@ export const ShiftsHistoryScreen = ({ onBack }: { onBack: () => void }) => {
       setShifts(data.shifts || []);
     } catch (err) {
       console.error('Failed to load shifts history:', err);
-      // Mock data for DEV mode
-      if (import.meta.env.DEV) {
-        setShifts([
-          {
-            id: 'shift-1',
-            company_name: 'ПВЗ Тверская',
-            location_address: 'ул. Тверская, 5, Москва',
-            start_time: '09:00',
-            end_time: '18:00',
-            hourly_rate: 500,
-            date: '2024-07-20',
-            status: 'completed',
-            owner_name: 'Петр Владелец',
-            owner_id: 'owner-1',
-            owner_telegram_username: 'pvz_owner',
-            total_hours: 9,
-            total_earnings: 4500,
-          },
-          {
-            id: 'shift-2',
-            company_name: 'ПВЗ Невский',
-            location_address: 'Невский пр., 100, СПб',
-            start_time: '10:00',
-            end_time: '19:00',
-            hourly_rate: 450,
-            date: '2024-07-19',
-            status: 'completed',
-            owner_name: 'Иван Петров',
-            owner_id: 'owner-2',
-            owner_telegram_username: 'ivan_pvz',
-            total_hours: 9,
-            total_earnings: 4050,
-          },
-          {
-            id: 'shift-3',
-            company_name: 'ПВЗ Красные Ворота',
-            location_address: 'пл. Красных Ворот, 1, Москва',
-            start_time: '08:00',
-            end_time: '17:00',
-            hourly_rate: 550,
-            date: '2024-07-18',
-            status: 'cancelled',
-            owner_name: 'Мария Сидорова',
-            owner_id: 'owner-3',
-            total_hours: 0,
-            total_earnings: 0,
-          },
-        ]);
-      }
     } finally {
       setLoading(false);
     }

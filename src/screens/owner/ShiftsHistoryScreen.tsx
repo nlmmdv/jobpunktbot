@@ -19,6 +19,68 @@ interface CompletedShift {
   freelancer_rating?: number;
 }
 
+// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
+const MOCK_HISTORY: CompletedShift[] = [
+  {
+    id: 'shift-1',
+    freelancer_name: 'Иван Петров',
+    freelancer_id: 'freelancer-1',
+    freelancer_telegram_username: 'ivan_freelancer',
+    location_address: 'ул. Тверская, 5, Москва',
+    start_time: '09:00',
+    end_time: '18:00',
+    hourly_rate: 500,
+    date: '2024-07-20',
+    status: 'completed',
+    total_hours: 9,
+    total_cost: 4500,
+    freelancer_rating: 4.8,
+  },
+  {
+    id: 'shift-2',
+    freelancer_name: 'Мария Сидорова',
+    freelancer_id: 'freelancer-2',
+    freelancer_telegram_username: 'maria_work',
+    location_address: 'ул. Тверская, 5, Москва',
+    start_time: '10:00',
+    end_time: '19:00',
+    hourly_rate: 450,
+    date: '2024-07-19',
+    status: 'completed',
+    total_hours: 9,
+    total_cost: 4050,
+    freelancer_rating: 4.5,
+  },
+  {
+    id: 'shift-3',
+    freelancer_name: 'Алексей Иванов',
+    freelancer_id: 'freelancer-3',
+    location_address: 'ул. Тверская, 5, Москва',
+    start_time: '08:00',
+    end_time: '17:00',
+    hourly_rate: 550,
+    date: '2024-07-18',
+    status: 'cancelled',
+    total_hours: 0,
+    total_cost: 0,
+  },
+  {
+    id: 'shift-4',
+    freelancer_name: 'Олег Смирнов',
+    freelancer_id: 'freelancer-4',
+    freelancer_telegram_username: 'oleg_worker',
+    location_address: 'ул. Тверская, 5, Москва',
+    start_time: '09:00',
+    end_time: '18:00',
+    hourly_rate: 500,
+    date: '2024-07-17',
+    status: 'completed',
+    total_hours: 9,
+    total_cost: 4500,
+    freelancer_rating: 5.0,
+  },
+];
+
 export const ShiftsHistoryScreen = ({ onBack }: { onBack: () => void }) => {
   const { profile } = useAuth();
   const [shifts, setShifts] = useState<CompletedShift[]>([]);
@@ -36,6 +98,13 @@ export const ShiftsHistoryScreen = ({ onBack }: { onBack: () => void }) => {
   const loadHistory = async () => {
     setLoading(true);
     try {
+      // DEV MODE: история смен-заглушка, без обращения к бэкенду.
+      if (import.meta.env.DEV) {
+        setShifts(MOCK_HISTORY);
+        setLoading(false);
+        return;
+      }
+
       if (!profile?.id) throw new Error('No profile');
       const data = await callFunction<{ shifts: CompletedShift[] }>('shifts-history', {
         owner_id: profile.id,
@@ -44,69 +113,6 @@ export const ShiftsHistoryScreen = ({ onBack }: { onBack: () => void }) => {
       setShifts(data.shifts || []);
     } catch (err) {
       console.error('Failed to load shifts history:', err);
-      // Mock data for DEV mode
-      if (import.meta.env.DEV) {
-        setShifts([
-          {
-            id: 'shift-1',
-            freelancer_name: 'Иван Петров',
-            freelancer_id: 'freelancer-1',
-            freelancer_telegram_username: 'ivan_freelancer',
-            location_address: 'ул. Тверская, 5, Москва',
-            start_time: '09:00',
-            end_time: '18:00',
-            hourly_rate: 500,
-            date: '2024-07-20',
-            status: 'completed',
-            total_hours: 9,
-            total_cost: 4500,
-            freelancer_rating: 4.8,
-          },
-          {
-            id: 'shift-2',
-            freelancer_name: 'Мария Сидорова',
-            freelancer_id: 'freelancer-2',
-            freelancer_telegram_username: 'maria_work',
-            location_address: 'ул. Тверская, 5, Москва',
-            start_time: '10:00',
-            end_time: '19:00',
-            hourly_rate: 450,
-            date: '2024-07-19',
-            status: 'completed',
-            total_hours: 9,
-            total_cost: 4050,
-            freelancer_rating: 4.5,
-          },
-          {
-            id: 'shift-3',
-            freelancer_name: 'Алексей Иванов',
-            freelancer_id: 'freelancer-3',
-            location_address: 'ул. Тверская, 5, Москва',
-            start_time: '08:00',
-            end_time: '17:00',
-            hourly_rate: 550,
-            date: '2024-07-18',
-            status: 'cancelled',
-            total_hours: 0,
-            total_cost: 0,
-          },
-          {
-            id: 'shift-4',
-            freelancer_name: 'Олег Смирнов',
-            freelancer_id: 'freelancer-4',
-            freelancer_telegram_username: 'oleg_worker',
-            location_address: 'ул. Тверская, 5, Москва',
-            start_time: '09:00',
-            end_time: '18:00',
-            hourly_rate: 500,
-            date: '2024-07-17',
-            status: 'completed',
-            total_hours: 9,
-            total_cost: 4500,
-            freelancer_rating: 5.0,
-          },
-        ]);
-      }
     } finally {
       setLoading(false);
     }

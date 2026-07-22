@@ -20,6 +20,32 @@ interface Vacancy {
 
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 
+// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
+const MOCK_VACANCIES: Vacancy[] = [
+  {
+    id: 'dev-own-vac-1',
+    type: 'permanent',
+    address: 'ул. Тверская, 5',
+    marketplaces: ['WB', 'Ozon'],
+    metro_stations: ['Охотный ряд'],
+    payment: 40000,
+    schedule: '5/2',
+    description: 'Постоянная работа на ПВЗ',
+  },
+  {
+    id: 'dev-own-vac-2',
+    type: 'temporary',
+    address: 'Невский пр., 100',
+    marketplaces: ['Яндекс Маркет'],
+    metro_stations: ['Невский пр-т'],
+    payment: 3000,
+    date: new Date().toISOString().split('T')[0],
+    start_time: '09:00',
+    end_time: '18:00',
+    description: 'Разовая подработка',
+  },
+];
+
 const emptyForm = () => ({
   date: new Date().toISOString().split('T')[0],
   address: '',
@@ -54,6 +80,12 @@ export const MyVacanciesScreen = ({ onBack }: { onBack: () => void }) => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
+      if (import.meta.env.DEV) {
+        setVacancies(MOCK_VACANCIES);
+        setLoading(false);
+        return;
+      }
+
       const data = await callFunction<{ vacancies: Vacancy[] }>('owner-vacancies', {
         action: 'list',
         telegramId: profile.telegram_id,

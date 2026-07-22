@@ -2,12 +2,42 @@ import { handleEdgeFunction } from "../_shared/edge-function-utils.ts";
 
 const TABLE = "owner_vacancies";
 
+async function checkCompanyBlock(supabase: any, telegramId: number) {
+  // Получить owner_id по telegram_id
+  const { data: owner } = await supabase
+    .from('owner_profiles')
+    .select('id')
+    .eq('telegram_id', telegramId)
+    .single();
+
+  if (!owner) {
+    throw new Error('Owner profile not found');
+  }
+
+  // Проверить активные блокировки компании
+  const now = new Date().toISOString();
+  const { data: blocks } = await supabase
+    .from('company_blocks')
+    .select('id')
+    .eq('blocked_company_id', owner.id)
+    .eq('status', 'active')
+    .or(`unblock_at.is.null,unblock_at.gt.${now}`)
+    .limit(1);
+
+  if (blocks && blocks.length > 0) {
+    throw new Error('Your company is blocked and cannot perform this action');
+  }
+}
+
 Deno.serve((req) =>
   handleEdgeFunction(req, async (supabase, telegramId, body) => {
     const { action, ...data } = body;
 
     if (action === "create") {
       const { type, description, address, city, date, start_time, end_time, schedule, payment, marketplaces, metro_stations } = data;
+
+      // Проверить блокировку компании
+      await checkCompanyBlock(supabase, telegramId);
 
       const { data: vacancy, error } = await supabase
         .from(TABLE)
@@ -59,6 +89,9 @@ Deno.serve((req) =>
 
     if (action === "update") {
       const { id, type, description, address, city, date, start_time, end_time, schedule, payment, marketplaces, metro_stations, status } = data;
+
+      // Проверить блокировку компании
+      await checkCompanyBlock(supabase, telegramId);
 
       const { data: vacancy, error } = await supabase
         .from(TABLE)

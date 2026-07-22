@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ComplaintModal } from './ComplaintModal';
+import { ReviewModal } from './ReviewModal';
 
 interface UserInfo {
   id: string;
@@ -18,6 +19,7 @@ interface OtherUserProfileModalProps {
 
 export const OtherUserProfileModal = ({ isOpen, onClose, user }: OtherUserProfileModalProps) => {
   const [showComplaintModal, setShowComplaintModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   if (!isOpen) return null;
 
@@ -101,7 +103,23 @@ export const OtherUserProfileModal = ({ isOpen, onClose, user }: OtherUserProfil
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{user.telegram_id}</div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <button
+              onClick={() => setShowReviewModal(true)}
+              style={{
+                flex: 1,
+                padding: '12px',
+                borderRadius: 8,
+                border: '1px solid #BFDBFE',
+                background: '#EFF6FF',
+                color: '#1E40AF',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ⭐ Отзыв
+            </button>
             <button
               onClick={() => setShowComplaintModal(true)}
               style={{
@@ -118,23 +136,23 @@ export const OtherUserProfileModal = ({ isOpen, onClose, user }: OtherUserProfil
             >
               🚩 Пожаловаться
             </button>
-            <button
-              onClick={onClose}
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: 'white',
-                color: 'var(--text-primary)',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Закрыть
-            </button>
           </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'white',
+              color: 'var(--text-primary)',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Закрыть
+          </button>
         </div>
       </div>
 
@@ -142,6 +160,13 @@ export const OtherUserProfileModal = ({ isOpen, onClose, user }: OtherUserProfil
         isOpen={showComplaintModal}
         onClose={() => setShowComplaintModal(false)}
         complaintType="user"
+        targetId={user.id}
+        targetName={`${user.first_name} ${user.last_name || ''}`}
+      />
+
+      <ReviewModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
         targetId={user.id}
         targetName={`${user.first_name} ${user.last_name || ''}`}
       />

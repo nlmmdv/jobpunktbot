@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction } from '../../lib/api';
 import { CreateResumeScreen } from './CreateResumeScreen';
-import { Screen, ScreenHeader, Card, Button, TextField, Label, Chip, SectionTitle, Loading, Modal } from '../../components/ui';
+import { Screen, ScreenHeader, Card, Button, TextField, Label, Chip, SectionTitle, Loading, Modal, BackButton } from '../../components/ui';
 import { ResumeGate } from '../../components/ResumeGate';
 import { MetroSelector, SelectedMetroChips, metroStationName } from '../../components/MetroSelector';
 
@@ -239,7 +239,7 @@ export const FreelancerShiftsScreen = ({ onBack }: { onBack: () => void }) => {
   }
 
   if (!resume) {
-    return <ResumeGate description="Создайте резюме чтобы создавать подработки" onCreate={() => setShowCreateResume(true)} />;
+    return <ResumeGate description="Создайте резюме чтобы создавать подработки" onCreate={() => setShowCreateResume(true)} onBack={onBack} />;
   }
 
   return (

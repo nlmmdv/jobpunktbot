@@ -3,16 +3,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { SearchEmployeesScreen } from './owner/SearchEmployeesScreen';
 import { MyVacanciesScreen } from './owner/MyVacanciesScreen';
 import { OwnerMatchesScreen } from './owner/OwnerMatchesScreen';
+import { ShiftsHistoryScreen } from './owner/ShiftsHistoryScreen';
 import { ProfileScreen } from './freelancer/ProfileScreen';
 import { ModerationDashboard } from './ModerationDashboard';
 import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 
-type Tab = 'menu' | 'search' | 'vacancies' | 'matches' | 'profile' | 'moderation';
+type Tab = 'menu' | 'search' | 'vacancies' | 'matches' | 'history' | 'profile' | 'moderation';
 
 const MENU: MenuItem<Tab>[] = [
   { screen: 'search', icon: '🔍', label: 'Поиск сотрудников' },
   { screen: 'vacancies', icon: '📋', label: 'Мои вакансии' },
   { screen: 'matches', icon: '📬', label: 'Отклики' },
+  { screen: 'history', icon: '📜', label: 'История смен' },
   { screen: 'profile', icon: '👤', label: 'Профиль' },
 ];
 
@@ -34,6 +36,7 @@ export const OwnerMainScreen = () => {
   if (screen === 'vacancies') return <MyVacanciesScreen onBack={back} />;
   if (screen === 'search') return <SearchEmployeesScreen onBack={back} />;
   if (screen === 'matches') return <OwnerMatchesScreen onBack={back} />;
+  if (screen === 'history') return <ShiftsHistoryScreen onBack={back} />;
   if (screen === 'moderation') return <ModerationDashboard onBack={back} />;
 
   return (

@@ -14,6 +14,9 @@ export interface Profile {
   city?: string;
   status?: string;
   created_at?: string;
+  photo_url?: string;
+  rating?: number;
+  owner_id?: string;
 }
 
 interface AuthContextType {
@@ -53,6 +56,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: 'employee',
             city: 'Москва',
             status: 'active',
+            created_at: '2024-01-15T10:30:00Z',
+            rating: 4.8,
           };
           authState = 'freelancer';
           console.log('✅ DEV MODE: Logged in as freelancer');
@@ -65,6 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: 'owner',
             city: 'Москва',
             status: 'active',
+            created_at: '2023-06-20T14:45:00Z',
+            rating: 4.5,
           };
           authState = 'owner';
           console.log('✅ DEV MODE: Logged in as owner');
@@ -76,6 +83,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             last_name: 'Test',
             role: 'administrator',
             status: 'active',
+            created_at: '2022-01-01T00:00:00Z',
+            rating: 5.0,
           };
           authState = 'administrator';
           console.log('✅ DEV MODE: Logged in as administrator');
@@ -112,6 +121,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log('✅ User authenticated, role:', authProfile.role);
+
+      // Проверить статус блокировки в рабочем режиме
+      if (import.meta.env.DEV === false) {
+        try {
+          // Проверить блокировку пользователя
+          const blockStatus = await callFunction<{
+            is_blocked: boolean;
+            blocks: { reason: string; unblock_at: string | null }[];
+          }>('check-user-block', {
+            user_id: authProfile.id,
+          });
+
+          if (blockStatus.is_blocked) {
+            const block = blockStatus.blocks[0];
+            const reason = block.reason;
+            const unblockTime = block.unblock_at
+              ? new Date(block.unblock_at).toLocaleString('ru')
+              : 'никогда';
+            setError(`🚫 Ваш аккаунт заблокирован.\n\nПричина: ${reason}\nРазблокировка: ${unblockTime}`);
+            setState('no_profile');
+            return;
+          }
+
+          // Проверить блокировку владельца если это owner
+          if (authProfile.role === 'owner' && authProfile.owner_id) {
+            const ownerBlockStatus = await callFunction<{
+              is_blocked: boolean;
+              blocks: { reason: string; unblock_at: string | null }[];
+            }>('check-owner-block', {
+              owner_id: authProfile.owner_id,
+            });
+
+            if (ownerBlockStatus.is_blocked) {
+              const block = ownerBlockStatus.blocks[0];
+              const reason = block.reason;
+              const unblockTime = block.unblock_at
+                ? new Date(block.unblock_at).toLocaleString('ru')
+                : 'никогда';
+              setError(`🚫 Ваш аккаунт заблокирован.\n\nПричина: ${reason}\nРазблокировка: ${unblockTime}`);
+              setState('no_profile');
+              return;
+            }
+
+            // Проверить блокировку компании
+            const companyBlockStatus = await callFunction<{
+              is_blocked: boolean;
+              blocks: { reason: string; unblock_at: string | null }[];
+            }>('check-company-block', {
+              owner_id: authProfile.owner_id,
+            });
+
+            if (companyBlockStatus.is_blocked) {
+              const block = companyBlockStatus.blocks[0];
+              const reason = block.reason;
+              const unblockTime = block.unblock_at
+                ? new Date(block.unblock_at).toLocaleString('ru')
+                : 'никогда';
+              setError(`🚫 Ваша компания заблокирована.\n\nПричина: ${reason}\nРазблокировка: ${unblockTime}`);
+              setState('no_profile');
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Error checking block status:', err);
+          // Продолжаем если проверка не сработала
+        }
+      }
+
       setProfile(authProfile);
 
       let authState: AuthState;

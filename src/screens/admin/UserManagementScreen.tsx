@@ -120,22 +120,63 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
     setShowBlockModal(true);
   };
 
-  const confirmBlock = () => {
-    if (selectedUserId) {
-      const duration = blockDuration === '1' ? 'час' : blockDuration === '24' ? 'день' : 'неделю';
-      alert(
-        `✅ ${selectedUser?.first_name} заблокирован на ${duration} (до ${new Date(
-          Date.now() + parseInt(blockDuration) * 3600000
-        ).toLocaleString('ru')})`
-      );
-      setShowBlockModal(false);
+  const confirmBlock = async () => {
+    if (selectedUserId && selectedUser) {
+      try {
+        const durationMinutes =
+          blockDuration === '1' ? 60 : blockDuration === '24' ? 24 * 60 : 7 * 24 * 60;
+        const duration =
+          blockDuration === '1' ? 'час' : blockDuration === '24' ? 'день' : 'неделю';
+
+        await callFunction('block-user', {
+          blocked_user_id: selectedUserId,
+          duration_minutes: durationMinutes,
+          reason: 'Блокировка администратором',
+        });
+
+        alert(
+          `✅ ${selectedUser.first_name} заблокирован на ${duration} (до ${new Date(
+            Date.now() + parseInt(blockDuration) * 3600000
+          ).toLocaleString('ru')})`
+        );
+        setShowBlockModal(false);
+      } catch (err) {
+        console.error('Error blocking user:', err);
+        alert('❌ Ошибка при блокировке пользователя');
+      }
     }
   };
 
   // Предупреждение
-  const handleWarnUser = (userId: string) => {
+  const handleWarnUser = async (userId: string) => {
     const user = users.find((u) => u.id === userId);
-    alert(`⚠️ Предупреждение отправлено пользователю ${user?.first_name}`);
+    if (!user) return;
+
+    try {
+      const result = await callFunction<{
+        warning: { id: string };
+        auto_blocked: boolean;
+        warning_count: number;
+      }>('warn-user', {
+        warned_user_id: userId,
+        reason: 'Предупреждение администратором',
+        severity: 'mild',
+      });
+
+      if (result.auto_blocked) {
+        alert(
+          `⚠️ Предупреждение #${result.warning_count} отправлено ${user.first_name}\n\n` +
+            `⚠️ Пользователь автоматически заблокирован на 7 дней после ${result.warning_count} предупреждений`
+        );
+      } else {
+        alert(
+          `⚠️ Предупреждение #${result.warning_count} отправлено пользователю ${user.first_name}`
+        );
+      }
+    } catch (err) {
+      console.error('Error warning user:', err);
+      alert('❌ Ошибка при отправке предупреждения');
+    }
   };
 
   // Загрузка жалоб на пользователя

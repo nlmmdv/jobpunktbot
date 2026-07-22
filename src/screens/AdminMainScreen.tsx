@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 import { UserManagementScreen } from './admin/UserManagementScreen';
 import { CompanyManagementScreen } from './admin/CompanyManagementScreen';
+import { VacancyManagementScreen } from './admin/VacancyManagementScreen';
+import { SystemSettingsScreen } from './admin/SystemSettingsScreen';
 
 type Tab = 'menu' | 'users' | 'companies' | 'vacancies' | 'system' | 'profile';
 
@@ -27,62 +29,19 @@ export const AdminMainScreen = () => {
   }
 
   if (screen === 'vacancies') {
-    return (
-      <Screen>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>📋 Управление вакансиями</div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 22 }}>
-          Модерация вакансий, удаление нарушений
-        </div>
-        <button
-          onClick={back}
-          style={{
-            padding: '14px',
-            borderRadius: 'var(--radius-btn)',
-            background: 'var(--accent-owner)',
-            color: 'white',
-            border: 'none',
-            fontWeight: 700,
-            fontSize: 14,
-            cursor: 'pointer',
-            marginTop: 20
-          }}
-        >
-          ← Назад
-        </button>
-      </Screen>
-    );
+    return <VacancyManagementScreen onBack={back} />;
   }
 
   if (screen === 'system') {
-    return (
-      <Screen>
-        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>⚙️ Системные настройки</div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 22 }}>
-          Конфигурация системы, логи, статистика
-        </div>
-        <button
-          onClick={back}
-          style={{
-            padding: '14px',
-            borderRadius: 'var(--radius-btn)',
-            background: 'var(--accent-owner)',
-            color: 'white',
-            border: 'none',
-            fontWeight: 700,
-            fontSize: 14,
-            cursor: 'pointer',
-            marginTop: 20
-          }}
-        >
-          ← Назад
-        </button>
-      </Screen>
-    );
+    return <SystemSettingsScreen onBack={back} />;
   }
 
   return (
     <Screen>
-      <div className="title">Администрирование</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <span style={{ fontSize: 28 }}>🛡️</span>
+        <div className="title" style={{ margin: 0 }}>Администрирование</div>
+      </div>
       <div className="subtitle">Привет, {profile?.first_name}! 👮</div>
       <MenuGrid items={ADMIN_MENU} variant="owner" onSelect={setScreen} />
     </Screen>

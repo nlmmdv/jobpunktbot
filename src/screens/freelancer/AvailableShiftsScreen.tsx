@@ -248,6 +248,7 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
       <ResumeGate
         description="Создайте резюме чтобы просматривать доступные замены"
         onCreate={() => setShowCreateResume(true)}
+        onBack={onBack}
       />
     );
   }

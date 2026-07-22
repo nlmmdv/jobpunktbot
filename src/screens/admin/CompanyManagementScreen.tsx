@@ -10,6 +10,8 @@ interface Company {
   city?: string;
   status: string;
   created_at: string;
+  owner_name?: string;
+  owner_id?: string;
 }
 
 interface CompanyComplaint {
@@ -37,6 +39,8 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
       city: 'Москва',
       status: 'active',
       created_at: '2026-06-01',
+      owner_name: 'Иван Петров',
+      owner_id: 'owner-1',
     },
     {
       id: '2',
@@ -46,6 +50,8 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
       city: 'СПб',
       status: 'active',
       created_at: '2026-06-15',
+      owner_name: 'Сергей Сидоров',
+      owner_id: 'owner-2',
     },
     {
       id: '3',
@@ -55,9 +61,12 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
       city: 'Казань',
       status: 'active',
       created_at: '2026-07-01',
+      owner_name: 'Мария Морозова',
+      owner_id: 'owner-3',
     },
   ]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [blockType, setBlockType] = useState<'temporary' | 'permanent'>('temporary');
   const [blockDuration, setBlockDuration] = useState('1');
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [complaints, setComplaints] = useState<Record<string, CompanyComplaint[]>>({
@@ -110,28 +119,79 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
 
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
-  // Временная блокировка компании
-  const handleBlockCompany = (companyId: string) => {
+  // Временная или постоянная блокировка компании
+  const handleBlockCompany = (companyId: string, type: 'temporary' | 'permanent') => {
     setSelectedCompanyId(companyId);
+    setBlockType(type);
     setShowBlockModal(true);
   };
 
-  const confirmBlock = () => {
+  const confirmBlock = async () => {
     if (selectedCompanyId) {
-      const duration = blockDuration === '1' ? 'час' : blockDuration === '24' ? 'день' : 'неделю';
-      alert(
-        `✅ ${selectedCompany?.organization_name} заблокирована на ${duration} (до ${new Date(
-          Date.now() + parseInt(blockDuration) * 3600000
-        ).toLocaleString('ru')})`
-      );
-      setShowBlockModal(false);
+      try {
+        if (blockType === 'temporary') {
+          const durationMap: Record<string, number> = {
+            '1': 60,
+            '24': 1440,
+            '7': 10080,
+          };
+          const durationMinutes = durationMap[blockDuration] || 60;
+          const durationText =
+            blockDuration === '1' ? 'час' : blockDuration === '24' ? 'день' : 'неделю';
+
+          await callFunction<{ block: { id: string } }>('block-company', {
+            blocked_company_id: selectedCompanyId,
+            duration_minutes: durationMinutes,
+            reason: 'Временная блокировка администратором',
+          });
+
+          alert(`✅ ${selectedCompany?.organization_name} заблокирована на ${durationText}`);
+        } else {
+          await callFunction<{ block: { id: string } }>('block-company', {
+            blocked_company_id: selectedCompanyId,
+            duration_minutes: 0,
+            reason: 'Полная постоянная блокировка администратором',
+          });
+
+          alert(`✅ ${selectedCompany?.organization_name} перманентно заблокирована`);
+        }
+        setShowBlockModal(false);
+      } catch (err) {
+        console.error('Error blocking:', err);
+        alert(
+          `❌ Ошибка при блокировке: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
+      }
     }
   };
 
   // Предупреждение компании
-  const handleWarnCompany = (companyId: string) => {
+  const handleWarnCompany = async (companyId: string) => {
     const company = companies.find((c) => c.id === companyId);
-    alert(`⚠️ Предупреждение отправлено компании ${company?.organization_name}`);
+    try {
+      const result = await callFunction<{
+        warning: { id: string };
+        auto_blocked: boolean;
+        warning_count: number;
+      }>('warn-company', {
+        warned_company_id: companyId,
+        reason: 'Предупреждение администратором',
+        severity: 'mild',
+      });
+
+      if (result.auto_blocked) {
+        alert(
+          `⚠️ Компания ${company?.organization_name} получила предупреждение #${result.warning_count}\n\n⛔ Автоматическая блокировка на 7 дней (3 предупреждения)`
+        );
+      } else {
+        alert(
+          `⚠️ Компания ${company?.organization_name} получила предупреждение #${result.warning_count} из 3`
+        );
+      }
+    } catch (err) {
+      console.error('Error warning company:', err);
+      alert(`❌ Ошибка при отправке предупреждения: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   };
 
   // Загрузка жалоб на компанию
@@ -299,7 +359,7 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
                 </button>
 
                 <button
-                  onClick={() => handleBlockCompany(company.id)}
+                  onClick={() => handleBlockCompany(company.id, 'temporary')}
                   style={{
                     padding: '8px 12px',
                     borderRadius: 8,
@@ -318,8 +378,32 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
                     (e.target as HTMLButtonElement).style.background = '#FEE2E2';
                   }}
                 >
-                  🚫 Блокировка
+                  ⏱️ Временная блокировка
                 </button>
+
+                <button
+                  onClick={() => handleBlockCompany(company.id, 'permanent')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: '#991B1B',
+                    color: 'white',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseOver={(e) => {
+                    (e.target as HTMLButtonElement).style.background = '#7F1D1D';
+                  }}
+                  onMouseOut={(e) => {
+                    (e.target as HTMLButtonElement).style.background = '#991B1B';
+                  }}
+                >
+                  🚫 Заблокировать
+                </button>
+
               </div>
             </div>
           ))
@@ -467,34 +551,38 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>
-              🚫 Блокировка компании
+              {blockType === 'temporary' ? '⏱️ Временная блокировка' : '🚫 Постоянная блокировка'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Блокировать {selectedCompany.organization_name}?
+              {blockType === 'temporary'
+                ? `Временно заблокировать ${selectedCompany.organization_name}?`
+                : `Перманентно заблокировать ${selectedCompany.organization_name}? Это действие нельзя отменить.`}
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>
-                ⏱️ Выберите продолжительность блокировки:
-              </label>
-              <select
-                value={blockDuration}
-                onChange={(e) => setBlockDuration(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 10px',
-                  borderRadius: 8,
-                  border: '1px solid var(--border-card-owner)',
-                  fontSize: 12,
-                  fontFamily: 'inherit',
-                  cursor: 'pointer',
-                }}
-              >
-                <option value="1">1 час</option>
-                <option value="24">1 день (24 часа)</option>
-                <option value="168">1 неделя (7 дней)</option>
-              </select>
-            </div>
+            {blockType === 'temporary' && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>
+                  Выберите продолжительность:
+                </label>
+                <select
+                  value={blockDuration}
+                  onChange={(e) => setBlockDuration(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-card-owner)',
+                    fontSize: 12,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="1">1 час</option>
+                  <option value="24">1 день (24 часа)</option>
+                  <option value="168">1 неделя (7 дней)</option>
+                </select>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button
@@ -504,14 +592,14 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
                   padding: '10px',
                   borderRadius: 8,
                   border: 'none',
-                  background: '#DC2626',
+                  background: blockType === 'temporary' ? '#DC2626' : '#991B1B',
                   color: 'white',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >
-                Заблокировать
+                {blockType === 'temporary' ? 'Заблокировать' : 'Перманентно заблокировать'}
               </button>
               <button
                 onClick={() => setShowBlockModal(false)}

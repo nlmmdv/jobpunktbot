@@ -178,6 +178,7 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       <ResumeGate
         description="Создайте резюме чтобы просматривать вакансии и откликаться"
         onCreate={() => setShowCreateResume(true)}
+        onBack={onBack}
       />
     );
   }

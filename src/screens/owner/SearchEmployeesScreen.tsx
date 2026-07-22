@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { callFunction, ApiError, errorText } from '../../lib/api';
-import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
+import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, TextField, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
 import { MetroSelector, SelectedMetroChips, metroListForCity } from '../../components/MetroSelector';
 import { RatingBadge } from '../../components/RatingBadge';
 import { formatShiftWhen } from '../../lib/cancellation';
+import { todayMoscow } from '../../lib/utils';
 
 interface Freelancer {
   id: string;
@@ -38,6 +39,8 @@ const CITIES = ['Москва', 'Санкт-Петербург', 'Все'];
 
 export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
   const [tab, setTab] = useState<SearchTab>('permanent');
+  // Замены ищем начиная с даты; по умолчанию — сегодня.
+  const [fromDate, setFromDate] = useState(todayMoscow());
   const [selectedCity, setSelectedCity] = useState('Москва');
   const [selectedMarketplaces, setSelectedMarketplaces] = useState<Set<string>>(new Set());
   const [selectedMetro, setSelectedMetro] = useState<Set<string>>(new Set());
@@ -52,7 +55,7 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
   useEffect(() => {
     loadFreelancers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, selectedCity, selectedMarketplaces, selectedMetro]);
+  }, [tab, fromDate, selectedCity, selectedMarketplaces, selectedMetro]);
 
   const loadFreelancers = async () => {
     setLoading(true);
@@ -60,6 +63,7 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
     try {
       const data = await callFunction<{ freelancers: Freelancer[] }>('search-freelancers', {
         type: tab,
+        fromDate: tab === 'temporary' ? fromDate : undefined,
         city: selectedCity === 'Все' ? 'Все' : selectedCity,
         marketplace: selectedMarketplaces.size > 0 ? Array.from(selectedMarketplaces)[0] : 'Все',
       });
@@ -154,6 +158,17 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
       </div>
 
       <div style={{ marginBottom: 20 }}>
+        {tab === 'temporary' && (
+          <TextField
+            variant="owner"
+            label="Дата начиная с"
+            type="date"
+            value={fromDate}
+            min={todayMoscow()}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        )}
+
         <SelectField variant="owner" label="Город" value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}>
           {CITIES.map((city) => (
             <option key={city} value={city}>

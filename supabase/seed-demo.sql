@@ -1,7 +1,32 @@
--- ДЕМО-КОНТЕНТ для ПроПункт (наполнение витрины)
--- telegram_id в диапазоне 990000001..990000099 — по нему всё удаляется (см. конец файла).
--- Таблицу profiles намеренно НЕ трогаем: она общая с платформой.
+-- ДЕМО-КОНТЕНТ для ПроПункт
+-- Идемпотентно: сначала удаляет прежнее демо, потом вставляет заново.
+-- Всё живёт в диапазоне telegram_id 990000001..990000099.
+--
+-- ВАЖНО: freelancer_resumes и freelancer_shifts имеют внешний ключ на profiles
+-- (таблицу платформы), поэтому демо-фрилансерам НУЖНЫ строки в profiles.
+-- У owner_vacancies такого ключа нет — демо-владельцам профили не нужны.
 
+-- ── очистка прежнего демо (в порядке зависимостей) ──
+DELETE FROM public.freelancer_shifts  WHERE telegram_id BETWEEN 990000001 AND 990000099;
+DELETE FROM public.freelancer_resumes WHERE telegram_id BETWEEN 990000001 AND 990000099;
+DELETE FROM public.owner_vacancies    WHERE telegram_id BETWEEN 990000001 AND 990000099;
+DELETE FROM public.profiles           WHERE telegram_id BETWEEN 990000001 AND 990000099;
+
+-- ── 1. Профили демо-фрилансеров (нужны из-за FK) ──
+INSERT INTO public.profiles (telegram_id, first_name, last_name, phone, city, role, status, is_active)
+VALUES
+  (990000001, 'Анна', 'Ковалёва', '+79991000000', 'Москва', 'employee', 'active', true),
+  (990000002, 'Дмитрий', 'Соколов', '+79991000001', 'Москва', 'employee', 'active', true),
+  (990000003, 'Марина', 'Ильина', '+79991000002', 'Санкт-Петербург', 'employee', 'active', true),
+  (990000004, 'Игорь', 'Петров', '+79991000003', 'Москва', 'employee', 'active', true),
+  (990000005, 'Ольга', 'Новикова', '+79991000004', 'Санкт-Петербург', 'employee', 'active', true),
+  (990000006, 'Сергей', 'Волков', '+79991000005', 'Москва', 'employee', 'active', true),
+  (990000007, 'Елена', 'Морозова', '+79991000006', 'Москва', 'employee', 'active', true),
+  (990000008, 'Артём', 'Лебедев', '+79991000007', 'Санкт-Петербург', 'employee', 'active', true),
+  (990000009, 'Юлия', 'Захарова', '+79991000008', 'Москва', 'employee', 'active', true),
+  (990000010, 'Павел', 'Крылов', '+79991000009', 'Санкт-Петербург', 'employee', 'active', true);
+
+-- ── 2. Резюме (постоянные кандидаты) ──
 INSERT INTO public.freelancer_resumes
   (telegram_id, first_name, last_name, phone, city, about, marketplaces, preferred_schedule, hourly_rate, metro_stations, status)
 VALUES
@@ -16,6 +41,7 @@ VALUES
   (990000009, 'Юлия', 'Захарова', '+79991000008', 'Москва', 'Студентка, свободна по выходным. Была на ПВЗ летом — знаю приёмку и выдачу.', ARRAY['WB']::text[], 'выходные', 460, ARRAY['Красносельская','Завод имени Сталина']::text[], 'active'),
   (990000010, 'Павел', 'Крылов', '+79991000009', 'Санкт-Петербург', 'Два года на пункте выдачи, без опозданий и нареканий. Готов подменять коллег.', ARRAY['Ozon']::text[], '5/2', 490, ARRAY['Пушкинская','Садовая']::text[], 'active');
 
+-- ── 3. Постоянные вакансии ──
 INSERT INTO public.owner_vacancies
   (telegram_id, type, city, address, marketplaces, metro_stations, payment, schedule, description, status)
 VALUES
@@ -30,6 +56,7 @@ VALUES
   (990000024, 'permanent', 'Санкт-Петербург', 'пр-т Просвещения, д. 21', ARRAY['Яндекс Маркет']::text[], ARRAY['Технологический институт']::text[], 42000, '2/2', 'Спальный район, постоянные клиенты. Стабильный график.', 'active'),
   (990000025, 'permanent', 'Москва', 'ул. Народного Ополчения, д. 34', ARRAY['WB','Ozon','Яндекс Маркет']::text[], ARRAY['Комсомольская']::text[], 52000, '5/2', 'Флагманский пункт, три маркетплейса. Ищем старшего смены.', 'active');
 
+-- ── 4. Временные вакансии (замены от владельцев) ──
 INSERT INTO public.owner_vacancies
   (telegram_id, type, city, address, marketplaces, metro_stations, payment, date, start_time, end_time, description, status)
 VALUES
@@ -43,24 +70,23 @@ VALUES
   (990000023, 'temporary', 'Москва', 'ул. Академика Королёва, д. 9', ARRAY['Ozon','WB']::text[], ARRAY['Маяковская']::text[], 2900, CURRENT_DATE + 9, '10:00', '20:00', 'Инвентаризация плюс обычная выдача.', 'active'),
   (990000024, 'temporary', 'Санкт-Петербург', 'пр-т Просвещения, д. 21', ARRAY['WB']::text[], ARRAY['Кировский завод']::text[], 2550, CURRENT_DATE + 11, '09:00', '18:00', 'Подмена на субботу.', 'active'),
   (990000025, 'temporary', 'Москва', 'ул. Народного Ополчения, д. 34', ARRAY['Яндекс Маркет']::text[], ARRAY['Комсомольская']::text[], 3100, CURRENT_DATE + 13, '08:00', '21:00', 'Пиковый день, нужен опытный сотрудник.', 'active');
--- ── УДАЛИТЬ ВСЁ ДЕМО (одной командой) ───────────────────────────────────────
--- DELETE FROM public.owner_vacancies    WHERE telegram_id BETWEEN 990000001 AND 990000099;
--- DELETE FROM public.freelancer_resumes WHERE telegram_id BETWEEN 990000001 AND 990000099;
 
--- ── ДЕМО: заявки на замены (freelancer_shifts) ─────────────────────────────
--- Даты относительные, поэтому всегда в будущем. telegram_id те же, что у резюме.
+-- ── 5. Заявки фрилансеров на замены ──
 INSERT INTO public.freelancer_shifts (telegram_id, date, start_time, end_time, rate, marketplaces, metro)
 VALUES
-  (990000001, CURRENT_DATE + 1, '09:00', '18:00', 450, ARRAY['WB']::text[], ARRAY['Арбатская','Сокольники']::text[]),
-  (990000002, CURRENT_DATE + 2, '10:00', '22:00', 500, ARRAY['WB','Ozon']::text[], ARRAY['Киевская','Арбатская']::text[]),
-  (990000003, CURRENT_DATE + 2, '09:00', '20:00', 480, ARRAY['Ozon']::text[], ARRAY['Маяковская','Фрунзенская']::text[]),
-  (990000004, CURRENT_DATE + 3, '12:00', '23:00', 520, ARRAY['Яндекс Маркет']::text[], ARRAY['Смоленская','Арбатская']::text[]),
-  (990000005, CURRENT_DATE + 4, '08:00', '17:00', 470, ARRAY['WB','Ozon']::text[], ARRAY['Маяковская','Звенигородская']::text[]),
-  (990000006, CURRENT_DATE + 5, '10:00', '19:00', 430, ARRAY['WB']::text[], ARRAY['Арбатская','Аэропорт']::text[]),
-  (990000007, CURRENT_DATE + 6, '09:00', '21:00', 550, ARRAY['Ozon','Яндекс Маркет']::text[], ARRAY['Арбатская','Динамо']::text[]),
-  (990000008, CURRENT_DATE + 7, '08:00', '20:00', 600, ARRAY['WB','Ozon']::text[], ARRAY['Кировский завод','Пушкинская']::text[]),
-  (990000009, CURRENT_DATE + 9, '11:00', '20:00', 460, ARRAY['WB']::text[], ARRAY['Красносельская','Чистые пруды']::text[]),
-  (990000010, CURRENT_DATE + 12, '09:00', '18:00', 490, ARRAY['Ozon']::text[], ARRAY['Парк Победы','Площадь Ленина']::text[]);
+  (990000001, CURRENT_DATE + 1, '09:00', '18:00', 450, ARRAY['WB']::text[], ARRAY['Тверская','Авиамоторная']::text[]),
+  (990000002, CURRENT_DATE + 2, '10:00', '22:00', 500, ARRAY['WB','Ozon']::text[], ARRAY['Аэропорт','Сокольники']::text[]),
+  (990000003, CURRENT_DATE + 2, '09:00', '20:00', 480, ARRAY['Ozon']::text[], ARRAY['Петроградская','Петроградская']::text[]),
+  (990000004, CURRENT_DATE + 3, '12:00', '23:00', 520, ARRAY['Яндекс Маркет']::text[], ARRAY['Маяковская','Комсомольская']::text[]),
+  (990000005, CURRENT_DATE + 4, '08:00', '17:00', 470, ARRAY['WB','Ozon']::text[], ARRAY['Технологический институт','Комендантский аэродром']::text[]),
+  (990000006, CURRENT_DATE + 5, '10:00', '19:00', 430, ARRAY['WB']::text[], ARRAY['Смоленская','Белорусская']::text[]),
+  (990000007, CURRENT_DATE + 6, '09:00', '21:00', 550, ARRAY['Ozon','Яндекс Маркет']::text[], ARRAY['Аэропорт','Таганская']::text[]),
+  (990000008, CURRENT_DATE + 7, '08:00', '20:00', 600, ARRAY['WB','Ozon','Яндекс Маркет']::text[], ARRAY['Чёрная речка','Площадь Восстания']::text[]),
+  (990000009, CURRENT_DATE + 9, '11:00', '20:00', 460, ARRAY['WB']::text[], ARRAY['Ленинские горы','Кокошкино']::text[]),
+  (990000010, CURRENT_DATE + 12, '09:00', '18:00', 490, ARRAY['Ozon']::text[], ARRAY['Обводный канал','Невский проспект']::text[]);
 
--- Удаление демо-замен:
--- DELETE FROM public.freelancer_shifts WHERE telegram_id BETWEEN 990000001 AND 990000099;
+-- ── УДАЛИТЬ ВСЁ ДЕМО ──
+-- DELETE FROM public.freelancer_shifts  WHERE telegram_id BETWEEN 990000001 AND 990000099;
+-- DELETE FROM public.freelancer_resumes WHERE telegram_id BETWEEN 990000001 AND 990000099;
+-- DELETE FROM public.owner_vacancies    WHERE telegram_id BETWEEN 990000001 AND 990000099;
+-- DELETE FROM public.profiles           WHERE telegram_id BETWEEN 990000001 AND 990000099;

@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { city, marketplace, type } = await req.json();
+    const { city, marketplace, type, fromDate } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -44,11 +44,15 @@ Deno.serve(async (req) => {
 
     /* ── Замены: заявки на конкретные даты ──────────────────────────────── */
     if (type === "temporary") {
-      // Прошедшие даты не предлагаем.
+      // Ищем от указанной даты, но не раньше сегодня — прошедшие смены
+      // предлагать бессмысленно, даже если клиент прислал старую дату.
+      const today = todayMoscow();
+      const since = fromDate && fromDate > today ? fromDate : today;
+
       const { data: shifts, error: shiftsError } = await supabase
         .from("freelancer_shifts")
         .select("id, telegram_id, date, start_time, end_time, rate, marketplaces, metro")
-        .gte("date", todayMoscow())
+        .gte("date", since)
         .order("date", { ascending: true });
 
       if (shiftsError) throw shiftsError;

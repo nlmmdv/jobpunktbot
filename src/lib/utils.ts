@@ -105,3 +105,16 @@ export const throttle = <T extends (...args: any[]) => any>(
     }
   };
 };
+
+/**
+ * Сегодняшняя дата в поясе смен (Москва) в формате YYYY-MM-DD — он же формат
+ * <input type="date"> и колонки date. Через локальное время считать нельзя:
+ * у пользователя в другом поясе день разъедется с тем, что на сервере.
+ */
+export const todayMoscow = (): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());

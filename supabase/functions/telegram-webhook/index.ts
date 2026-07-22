@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-import { botMessages, openAppButton, esc, type RaterRole, type VacancyInfo } from "../_shared/bot-messages.ts";
+import { botMessages, openAppButton, mainMenu, esc, type RaterRole, type VacancyInfo } from "../_shared/bot-messages.ts";
 import { clampText, TEXT_LIMITS } from "../_shared/limits.ts";
 
 const ADMIN_CHAT_ID = -5402800630n;
@@ -222,11 +222,10 @@ async function handleStart(supabase: Db, actorId: number, chatId: number) {
     .maybeSingle();
 
   // Зарегистрированного встречаем по имени, новому объясняем, что это за бот.
-  await sendMessage(
-    chatId,
-    profile?.first_name ? botMessages.startReturning(profile.first_name) : botMessages.start(),
-    openAppButton()
-  );
+  const message = profile?.first_name ? botMessages.startReturning(profile.first_name) : botMessages.start();
+
+  // Отправляем сообщение с persistent menu
+  await sendMessage(chatId, message, mainMenu());
 }
 
 async function handleFeedbackStart(supabase: Db, actorId: number, chatId: number) {
@@ -283,6 +282,10 @@ async function handleFeedback(supabase: Db, actorId: number, chatId: number, tex
 
   await sendMessage(chatId, "Спасибо! Мы получили ваше сообщение. 📬");
   return true;
+}
+
+async function handleAboutButton(chatId: number) {
+  await sendMessage(chatId, botMessages.about(), mainMenu());
 }
 
 /* ── Точка входа ────────────────────────────────────────────────────────── */
@@ -350,14 +353,19 @@ Deno.serve(async (req) => {
 
     if (!chatId || !actorId || !text) return ok();
 
-    // Явная команда важнее незакрытого комментария и обратной связи.
+    // Явная команда и кнопки важнее незакрытого комментария и обратной связи.
     if (text.startsWith("/start")) {
       await handleStart(supabase, actorId, chatId);
       return ok();
     }
 
-    if (text.startsWith("/feedback")) {
+    if (text.startsWith("/feedback") || text === "💬 Обратная связь") {
       await handleFeedbackStart(supabase, actorId, chatId);
+      return ok();
+    }
+
+    if (text === "ℹ️ О сервисе") {
+      await handleAboutButton(chatId);
       return ok();
     }
 

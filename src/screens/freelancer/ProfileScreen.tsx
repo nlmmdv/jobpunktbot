@@ -31,13 +31,13 @@ const InfoRow = ({ emoji, label, value }: { emoji: string; label: string; value:
 );
 
 export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenProps) => {
-  const { profile } = useAuth();
+  const { profile, applyProfile } = useAuth();
   const [showEditModal, setShowEditModal] = useState(false);
   const [formData, setFormData] = useState({
     first_name: profile?.first_name || '',
     last_name: profile?.last_name || '',
     city: profile?.city || CITIES_LIST[0],
-    about: '',
+    about: profile?.about || '',
   });
   const [saving, setSaving] = useState(false);
   const [rating, setRating] = useState<{ avg_rating: number | null; rating_count: number }>({
@@ -59,7 +59,7 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
     setSaving(true);
 
     try {
-      const data = await callFunction<{ profile: { first_name: string; last_name: string; city: string; status?: string } }>(
+      const data = await callFunction<{ profile: { first_name: string; last_name: string; city: string; about?: string } }>(
         'update-profile',
         {
           telegramId: profile.telegram_id,
@@ -74,7 +74,16 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
         first_name: data.profile.first_name,
         last_name: data.profile.last_name,
         city: data.profile.city,
-        about: data.profile.status || '',
+        about: data.profile.about || '',
+      });
+      // Прокидываем изменения в контекст, иначе имя/город в шапке остаются
+      // старыми — они читаются из profile, а не из локального formData.
+      applyProfile({
+        ...profile,
+        first_name: data.profile.first_name,
+        last_name: data.profile.last_name,
+        city: data.profile.city,
+        about: data.profile.about,
       });
     } catch (err) {
       console.error('Failed to save profile:', err);

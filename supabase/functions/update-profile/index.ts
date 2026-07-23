@@ -39,7 +39,9 @@ Deno.serve(async (req) => {
         first_name: first_name || undefined,
         last_name: last_name || undefined,
         city: city || undefined,
-        status: about ? clampText(about, TEXT_LIMITS.about) : undefined,
+        // Пишем в about, а НЕ в status: status — поле платформы (employed/active),
+        // и запись сюда текста «о себе» затирала статус занятости пользователя.
+        about: about !== undefined ? clampText(about, TEXT_LIMITS.about) : undefined,
       })
       .eq("telegram_id", telegramId)
       .select()

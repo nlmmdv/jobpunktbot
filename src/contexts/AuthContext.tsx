@@ -17,6 +17,7 @@ export interface Profile {
   phone?: string;
   role: 'owner' | 'admin' | 'employee';
   city?: string;
+  about?: string;
   status?: string;
   created_at?: string;
 }
@@ -26,6 +27,10 @@ interface AuthContextType {
   profile: Profile | null;
   error: string | null;
   refreshAuth: () => Promise<void>;
+  /** Обновить профиль в контексте после локального изменения (например
+   *  сохранения на экране «Профиль»), чтобы UI сразу показал новые данные
+   *  без повторной авторизации. */
+  applyProfile: (profile: Profile) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -96,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ state, profile, error, refreshAuth }}>
+    <AuthContext.Provider value={{ state, profile, error, refreshAuth, applyProfile: setProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Screen, TextField } from '../../components/ui';
+import { useState, useMemo, useEffect } from 'react';
+import { Screen, TextField, Loading } from '../../components/ui';
 import { callFunction } from '../../lib/api';
 
 interface Company {
@@ -16,45 +16,33 @@ interface Company {
 
 export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [companies, setCompanies] = useState<Company[]>([
-    {
-      id: '1',
-      telegram_id: 111222333,
-      organization_name: 'ПВЗ "Альфа" - Москва',
-      phone: '+7 (495) 123-45-67',
-      city: 'Москва',
-      status: 'active',
-      created_at: '2026-06-01',
-      owner_name: 'Иван Петров',
-      owner_id: 'owner-1',
-    },
-    {
-      id: '2',
-      telegram_id: 444555666,
-      organization_name: 'ПВЗ "Бета" - СПб',
-      phone: '+7 (812) 987-65-43',
-      city: 'СПб',
-      status: 'active',
-      created_at: '2026-06-15',
-      owner_name: 'Сергей Сидоров',
-      owner_id: 'owner-2',
-    },
-    {
-      id: '3',
-      telegram_id: 777888999,
-      organization_name: 'ПВЗ "Гамма" - Казань',
-      phone: '+7 (843) 555-12-34',
-      city: 'Казань',
-      status: 'active',
-      created_at: '2026-07-01',
-      owner_name: 'Мария Морозова',
-      owner_id: 'owner-3',
-    },
-  ]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [blockType, setBlockType] = useState<'temporary' | 'permanent'>('temporary');
   const [blockDuration, setBlockDuration] = useState('1');
   const [showBlockModal, setShowBlockModal] = useState(false);
+
+  useEffect(() => {
+    loadCompanies();
+  }, []);
+
+  const loadCompanies = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await callFunction<{ companies: Company[] }>('list-companies', {
+        limit: 100,
+      });
+      setCompanies(data.companies || []);
+    } catch (err) {
+      console.error('Failed to load companies:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load companies');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Поиск компаний
   const filteredCompanies = useMemo(() => {
@@ -150,8 +138,16 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
       <div className="title">🏢 Управление компаниями</div>
       <div className="subtitle">Модерация ПВЗ и действия с компаниями</div>
 
-      {/* Поиск */}
-      <TextField
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <div style={{ padding: '20px', textAlign: 'center', color: '#DC2626' }}>
+          ❌ {error}
+        </div>
+      ) : (
+        <>
+          {/* Поиск */}
+          <TextField
         placeholder="Поиск по названию, городу или ID..."
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -416,6 +412,8 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Модальное окно блокировки */}

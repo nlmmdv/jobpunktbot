@@ -14,20 +14,6 @@ interface Company {
   owner_id?: string;
 }
 
-interface CompanyComplaint {
-  id: string;
-  reason: string;
-  description?: string;
-  status: string;
-  created_at: string;
-  reported_by: {
-    id: string;
-    first_name: string;
-    last_name?: string;
-    telegram_id: number;
-  };
-}
-
 export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [companies, setCompanies] = useState<Company[]>([
@@ -69,41 +55,6 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
   const [blockType, setBlockType] = useState<'temporary' | 'permanent'>('temporary');
   const [blockDuration, setBlockDuration] = useState('1');
   const [showBlockModal, setShowBlockModal] = useState(false);
-  const [complaints, setComplaints] = useState<Record<string, CompanyComplaint[]>>({
-    // Тестовые жалобы на первую компанию
-    '1': [
-      {
-        id: 'company-complaint-1',
-        reason: 'Плохое обслуживание',
-        description: 'Невежливый персонал, долгое ожидание при оформлении',
-        status: 'open',
-        created_at: '2026-07-20T10:30:00',
-        reported_by: {
-          id: 'user-1',
-          first_name: 'Петр',
-          last_name: 'Иванов',
-          telegram_id: 123456789,
-        },
-      },
-      {
-        id: 'company-complaint-2',
-        reason: 'Проблема с доставкой',
-        description: 'Посылка доставлена в плохом состоянии',
-        status: 'resolved',
-        created_at: '2026-07-18T15:45:00',
-        reported_by: {
-          id: 'user-2',
-          first_name: 'Елена',
-          last_name: 'Петрова',
-          telegram_id: 987654321,
-        },
-      },
-    ],
-    '2': [],
-    '3': [],
-  });
-  const [showComplaintsModal, setShowComplaintsModal] = useState(false);
-  const [complaintsLoading, setComplaintsLoading] = useState(false);
 
   // Поиск компаний
   const filteredCompanies = useMemo(() => {
@@ -139,16 +90,15 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
     const companyId = selectedCompanyId;
     const companyName = selectedCompany?.organization_name;
 
-    const durationMap: Record<string, number> = { '1': 60, '24': 1440, '7': 10080 };
     const durationText =
       blockDuration === '1' ? 'час' : blockDuration === '24' ? 'день' : 'неделю';
 
     try {
-      // В DEV Edge Functions недоступны — обновляем только локальное состояние.
+      // В DEV режиме обновляем только локальное состояние
       if (!import.meta.env.DEV) {
         await callFunction<{ block: { id: string } }>('block-company', {
-          blocked_company_id: companyId,
-          duration_minutes: blockType === 'temporary' ? durationMap[blockDuration] || 60 : 0,
+          owner_id: companyId,
+          duration_minutes: blockType === 'temporary' ? 60 : 0,
           reason:
             blockType === 'temporary'
               ? 'Временная блокировка администратором'
@@ -176,60 +126,21 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
       const result = await callFunction<{
         warning: { id: string };
         auto_blocked: boolean;
-        warning_count: number;
       }>('warn-company', {
-        warned_company_id: companyId,
+        owner_id: companyId,
         reason: 'Предупреждение администратором',
         severity: 'mild',
       });
 
-      if (result.auto_blocked) {
-        alert(
-          `⚠️ Компания ${company?.organization_name} получила предупреждение #${result.warning_count}\n\n⛔ Автоматическая блокировка на 7 дней (3 предупреждения)`
-        );
-      } else {
-        alert(
-          `⚠️ Компания ${company?.organization_name} получила предупреждение #${result.warning_count} из 3`
-        );
-      }
+      alert(
+        `⚠️ Компания ${company?.organization_name} получила предупреждение`
+      );
     } catch (err) {
       console.error('Error warning company:', err);
       alert(`❌ Ошибка при отправке предупреждения: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
-  // Загрузка жалоб на компанию
-  const loadComplaints = async (companyId: string) => {
-    if (companyId in complaints) {
-      setSelectedCompanyId(companyId);
-      setShowComplaintsModal(true);
-      return;
-    }
-
-    setComplaintsLoading(true);
-    try {
-      const data = await callFunction<{ complaints: CompanyComplaint[] }>('get-company-complaints', {
-        company_id: companyId,
-      });
-      setComplaints((prev) => ({
-        ...prev,
-        [companyId]: data.complaints,
-      }));
-      setSelectedCompanyId(companyId);
-      setShowComplaintsModal(true);
-    } catch (err) {
-      console.error('Error loading company complaints:', err);
-      // В DEV режиме просто показываем пустой список если функция недоступна
-      setComplaints((prev) => ({
-        ...prev,
-        [companyId]: [],
-      }));
-      setSelectedCompanyId(companyId);
-      setShowComplaintsModal(true);
-    } finally {
-      setComplaintsLoading(false);
-    }
-  };
 
   return (
     <Screen>
@@ -337,29 +248,6 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
                   }}
                 >
                   ⚠️ Предупреждение
-                </button>
-
-                <button
-                  onClick={() => loadComplaints(company.id)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #F59E0B',
-                    background: '#FFFBEB',
-                    color: '#D97706',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseOver={(e) => {
-                    (e.target as HTMLButtonElement).style.background = '#FEF3C7';
-                  }}
-                  onMouseOut={(e) => {
-                    (e.target as HTMLButtonElement).style.background = '#FFFBEB';
-                  }}
-                >
-                  📋 Жалобы ({complaints[company.id]?.length || 0})
                 </button>
 
                 {company.status === 'active' && (

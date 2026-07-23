@@ -1,69 +1,29 @@
-import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { handlePublicEdgeFunction } from "../_shared/edge-function-utils.ts";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+async function checkCompanyBlock(supabase: any, body: Record<string, unknown>) {
+  const { owner_id } = body as { owner_id: string };
 
-serve(async (req: Request) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+  if (!owner_id) {
+    throw new Error("Missing owner_id");
   }
 
-  try {
-    const { owner_id } = await req.json();
+  // Проверить статус компании
+  const { data: company, error } = await supabase
+    .from("owner_profiles")
+    .select("id, status")
+    .eq("id", owner_id)
+    .single();
 
-    if (!owner_id) {
-      return new Response(
-        JSON.stringify({ error: 'Missing owner_id' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const authHeader = req.headers.get('Authorization') || '';
-    const token = authHeader.replace('Bearer ', '');
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-
-    // Получить текущего пользователя
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Проверить активные блокировки компании
-    const { data: blocks, error } = await supabase
-      .from('company_blocks')
-      .select('id, reason, duration_minutes, unblock_at, status')
-      .eq('blocked_company_id', owner_id)
-      .eq('status', 'active')
-      .order('blocked_at', { ascending: false })
-      .limit(1);
-
-    if (error) throw error;
-
-    const isBlocked = blocks && blocks.length > 0;
-    const block = blocks?.[0];
-
-    return new Response(
-      JSON.stringify({
-        is_blocked: isBlocked,
-        blocks: blocks || [],
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  } catch (err) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (error && error.code !== "PGRST116") {
+    throw new Error(`Failed to check company: ${error.message}`);
   }
-});
+
+  const isBlocked = company?.status === "blocked";
+
+  return {
+    is_blocked: isBlocked,
+    company_id: owner_id,
+  };
+}
+
+Deno.serve((req) => handlePublicEdgeFunction(req, checkCompanyBlock));

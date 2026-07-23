@@ -1,117 +1,69 @@
-import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { handleEdgeFunction } from "../_shared/edge-function-utils.ts";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+const ADMIN_TELEGRAM_IDS = [406489240]; // Админы, которые могут модерировать
 
-serve(async (req: Request) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+async function blockCompany(
+  supabase: any,
+  adminTelegramId: number,
+  body: Record<string, unknown>
+) {
+  // Проверить что админ авторизован
+  const { data: adminProfile, error: adminError } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("telegram_id", adminTelegramId)
+    .single();
+
+  if (adminError || !adminProfile) {
+    throw new Error("Admin profile not found");
   }
 
-  try {
-    const { blocked_company_id, duration_minutes, reason } = await req.json();
-
-    if (!blocked_company_id || !duration_minutes || !reason) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: blocked_company_id, duration_minutes, reason' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const authHeader = req.headers.get('Authorization') || '';
-    const token = authHeader.replace('Bearer ', '');
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-
-    // Получить текущего пользователя
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Получить профиль администратора
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('telegram_id', parseInt(userData.user.user_metadata?.telegram_id || '0'))
-      .single();
-
-    if (!adminProfile) {
-      return new Response(JSON.stringify({ error: 'Admin profile not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Проверить что пользователь администратор
-    const { data: adminRole } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', adminProfile.id)
-      .single();
-
-    if (adminRole?.role !== 'administrator' && adminRole?.role !== 'admin') {
-      return new Response(
-        JSON.stringify({ error: 'Only administrators can block companies' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Проверить что компания уже заблокирована
-    const { data: existingBlock } = await supabase
-      .from('company_blocks')
-      .select('id')
-      .eq('blocked_company_id', blocked_company_id)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (existingBlock) {
-      return new Response(
-        JSON.stringify({ error: 'Company is already blocked' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Вычислить время разблокировки
-    const unblockAt = duration_minutes === 0
-      ? null
-      : new Date(Date.now() + duration_minutes * 60000);
-
-    // Создать блокировку
-    const { data: block, error } = await supabase
-      .from('company_blocks')
-      .insert({
-        blocked_company_id,
-        blocked_by_admin_id: adminProfile.id,
-        reason,
-        duration_minutes,
-        unblock_at: unblockAt,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    return new Response(JSON.stringify({ block }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (adminProfile.role !== "admin") {
+    throw new Error("Only admins can block companies (403)");
   }
-});
+
+  if (!ADMIN_TELEGRAM_IDS.includes(adminTelegramId)) {
+    throw new Error("Not authorized to block companies (403)");
+  }
+
+  const { owner_id, duration_minutes, reason } = body as {
+    owner_id: string;
+    duration_minutes: number;
+    reason: string;
+  };
+
+  if (!owner_id || duration_minutes === undefined || !reason) {
+    throw new Error("Missing required fields: owner_id, duration_minutes, reason");
+  }
+
+  // Проверить что компания существует
+  const { data: company, error: companyError } = await supabase
+    .from("owner_profiles")
+    .select("id, status")
+    .eq("id", owner_id)
+    .single();
+
+  if (companyError || !company) {
+    throw new Error("Company not found");
+  }
+
+  if (company.status === "blocked") {
+    throw new Error("Company is already blocked");
+  }
+
+  // Блокировать компанию (обновить статус в owner_profiles)
+  const { data: updated, error: updateError } = await supabase
+    .from("owner_profiles")
+    .update({ status: "blocked" })
+    .eq("id", owner_id)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw new Error(`Failed to block company: ${updateError.message}`);
+  }
+
+  return { block: updated };
+}
+
+Deno.serve((req) => handleEdgeFunction(req, blockCompany));

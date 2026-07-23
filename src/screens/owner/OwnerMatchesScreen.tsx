@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction, errorText } from '../../lib/api';
-import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState, type BadgeTone } from '../../components/ui';
+import { Screen, ScreenHeader, Card, Button, Badge, Segmented, Loading, EmptyState, type BadgeTone } from '../../components/ui';
 import { RatingBadge } from '../../components/RatingBadge';
 
 interface Match {
@@ -97,14 +97,14 @@ export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
     <Screen>
       <ScreenHeader title="📬 Отклики" variant="owner" onBack={onBack} />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Button variant="owner" tone={tab === 'incoming' ? 'primary' : 'secondary'} small onClick={() => setTab('incoming')}>
-          Входящие
-        </Button>
-        <Button variant="owner" tone={tab === 'sent' ? 'primary' : 'secondary'} small onClick={() => setTab('sent')}>
-          Мои предложения
-        </Button>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'incoming', label: 'Входящие' },
+          { value: 'sent', label: 'Мои предложения' },
+        ]}
+      />
 
       {displayMatches.length === 0 && (
         <EmptyState>{tab === 'incoming' ? '📝 Нет входящих откликов' : '📬 Нет отправленных предложений'}</EmptyState>

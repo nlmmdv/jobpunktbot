@@ -10,11 +10,11 @@ import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 type Tab = 'menu' | 'search' | 'vacancies' | 'matches' | 'myshifts' | 'profile';
 
 const MENU: MenuItem<Tab>[] = [
-  { screen: 'search', icon: '🔍', label: 'Поиск сотрудников' },
-  { screen: 'vacancies', icon: '📋', label: 'Мои вакансии' },
-  { screen: 'matches', icon: '📬', label: 'Отклики' },
-  { screen: 'myshifts', icon: '📅', label: 'Мои смены' },
-  { screen: 'profile', icon: '👤', label: 'Профиль', wide: true },
+  { screen: 'search', icon: '🔍', label: 'Поиск сотрудников', sub: 'Резюме и замены' },
+  { screen: 'vacancies', icon: '📋', label: 'Мои вакансии', sub: 'Публикации' },
+  { screen: 'matches', icon: '📬', label: 'Отклики', sub: 'Входящие заявки' },
+  { screen: 'myshifts', icon: '📅', label: 'Мои смены', sub: 'Расписание' },
+  { screen: 'profile', icon: '👤', label: 'Профиль', sub: 'Данные и рейтинг', wide: true },
 ];
 
 export const OwnerMainScreen = () => {
@@ -31,8 +31,8 @@ export const OwnerMainScreen = () => {
 
   return (
     <Screen>
-      <div className="title">ПроПункт</div>
-      <div className="subtitle">Привет, {profile?.first_name}!</div>
+      <div className="title">Привет, {profile?.first_name} 👋</div>
+      <div className="subtitle">Кого ищем сегодня?</div>
       <MenuGrid items={MENU} variant="owner" onSelect={setScreen} />
     </Screen>
   );

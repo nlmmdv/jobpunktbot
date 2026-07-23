@@ -11,12 +11,12 @@ import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 type Tab = 'menu' | 'shifts' | 'vacancies' | 'available' | 'matches' | 'myshifts' | 'profile';
 
 const MENU: MenuItem<Tab>[] = [
-  { screen: 'shifts', icon: '📋', label: 'Подработка' },
-  { screen: 'vacancies', icon: '💼', label: 'Вакансии' },
-  { screen: 'available', icon: '⏰', label: 'Замены' },
-  { screen: 'matches', icon: '📬', label: 'Отклики' },
-  { screen: 'myshifts', icon: '📅', label: 'Мои смены' },
-  { screen: 'profile', icon: '👤', label: 'Профиль' },
+  { screen: 'shifts', icon: '📋', label: 'Подработка', sub: 'Смены по дням' },
+  { screen: 'vacancies', icon: '💼', label: 'Вакансии', sub: 'Постоянная работа' },
+  { screen: 'available', icon: '⏰', label: 'Замены', sub: 'Разовый выход' },
+  { screen: 'matches', icon: '📬', label: 'Отклики', sub: 'Ответы и офферы' },
+  { screen: 'myshifts', icon: '📅', label: 'Мои смены', sub: 'Расписание' },
+  { screen: 'profile', icon: '👤', label: 'Профиль', sub: 'Данные и рейтинг' },
 ];
 
 export const FreelancerMainScreen = () => {
@@ -34,8 +34,8 @@ export const FreelancerMainScreen = () => {
 
   return (
     <Screen>
-      <div className="title">ПроПункт</div>
-      <div className="subtitle">Привет, {profile?.first_name}!</div>
+      <div className="title">Привет, {profile?.first_name} 👋</div>
+      <div className="subtitle">Что ищем сегодня?</div>
       <MenuGrid items={MENU} variant="freelancer" onSelect={setScreen} />
     </Screen>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction, errorText } from '../../lib/api';
-import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState, type BadgeTone } from '../../components/ui';
+import { Screen, ScreenHeader, Card, Button, Badge, Segmented, Loading, EmptyState, type BadgeTone } from '../../components/ui';
 import { RatingBadge } from '../../components/RatingBadge';
 
 interface Match {
@@ -99,14 +99,14 @@ export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
     <Screen>
       <ScreenHeader title="📬 Мои отклики" variant="freelancer" onBack={onBack} />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Button tone={tab === 'sent' ? 'primary' : 'secondary'} small onClick={() => setTab('sent')}>
-          Мои отклики
-        </Button>
-        <Button tone={tab === 'offers' ? 'primary' : 'secondary'} small onClick={() => setTab('offers')}>
-          Предложения мне
-        </Button>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'sent', label: 'Мои отклики' },
+          { value: 'offers', label: 'Предложения мне' },
+        ]}
+      />
 
       {displayMatches.length === 0 && (
         <EmptyState>{tab === 'sent' ? '📝 Нет откликов' : '📬 Нет предложений'}</EmptyState>

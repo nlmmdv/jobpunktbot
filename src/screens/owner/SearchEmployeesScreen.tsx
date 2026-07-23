@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { callFunction, ApiError, errorText } from '../../lib/api';
-import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, TextField, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
+import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, TextField, Segmented, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
 import { MetroSelector, SelectedMetroChips, metroListForCity } from '../../components/MetroSelector';
 import { RatingBadge } from '../../components/RatingBadge';
 import { formatShiftWhen } from '../../lib/cancellation';
@@ -138,24 +138,14 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
     <Screen>
       <ScreenHeader title="Поиск сотрудников" variant="owner" onBack={onBack} />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Button
-          variant="owner"
-          tone={tab === 'permanent' ? 'primary' : 'secondary'}
-          small
-          onClick={() => setTab('permanent')}
-        >
-          Постоянные
-        </Button>
-        <Button
-          variant="owner"
-          tone={tab === 'temporary' ? 'primary' : 'secondary'}
-          small
-          onClick={() => setTab('temporary')}
-        >
-          Замены
-        </Button>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'permanent', label: 'Постоянные' },
+          { value: 'temporary', label: 'Замены' },
+        ]}
+      />
 
       <div style={{ marginBottom: 20 }}>
         {tab === 'temporary' && (

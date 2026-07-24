@@ -2,25 +2,49 @@ import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction, ApiError } from '../../lib/api';
 import { Screen, ScreenHeader, Button, TextField, TextArea, Label, Chip, ErrorText } from '../../components/ui';
-import { MetroSelector, SelectedMetroChips, metroStationName } from '../../components/MetroSelector';
+import { MetroSelector, SelectedMetroChips, metroStationName, metroListForCity } from '../../components/MetroSelector';
 import { TEXT_LIMITS } from '../../constants';
 
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 
+/** Резюме, пришедшее с сервера (для режима редактирования). */
+export interface ExistingResume {
+  id: string;
+  status: string;
+  about?: string | null;
+  marketplaces?: string[] | null;
+  hourly_rate?: number | null;
+  preferred_schedule?: string | null;
+  metro_stations?: string[] | null;
+}
+
 interface CreateResumeScreenProps {
   onDone: (resume: { id: string; status: string }) => void;
   onCancel: () => void;
+  /** Передан — экран работает как редактирование, иначе как создание. */
+  resume?: ExistingResume | null;
 }
 
-export const CreateResumeScreen = ({ onDone, onCancel }: CreateResumeScreenProps) => {
+export const CreateResumeScreen = ({ onDone, onCancel, resume }: CreateResumeScreenProps) => {
   const { profile } = useAuth();
   const userCity = profile?.city || 'Москва';
+  const isEdit = Boolean(resume);
 
-  const [about, setAbout] = useState('');
-  const [marketplaces, setMarketplaces] = useState<Set<string>>(new Set());
-  const [hourlyRate, setHourlyRate] = useState(0);
-  const [preferredSchedule, setPreferredSchedule] = useState('');
-  const [selectedMetro, setSelectedMetro] = useState<Set<string>>(new Set());
+  // В резюме метро хранится названиями, а выбор — по id: переводим обратно.
+  const metroIdsFromNames = (names: string[]) =>
+    new Set(
+      names
+        .map((name) => metroListForCity(userCity).find((st) => st.name === name)?.id)
+        .filter((id): id is string => Boolean(id))
+    );
+
+  const [about, setAbout] = useState(resume?.about || '');
+  const [marketplaces, setMarketplaces] = useState<Set<string>>(new Set(resume?.marketplaces || []));
+  const [hourlyRate, setHourlyRate] = useState(resume?.hourly_rate || 0);
+  const [preferredSchedule, setPreferredSchedule] = useState(resume?.preferred_schedule || '');
+  const [selectedMetro, setSelectedMetro] = useState<Set<string>>(
+    metroIdsFromNames(resume?.metro_stations || [])
+  );
   const [showMetroSelector, setShowMetroSelector] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +74,7 @@ export const CreateResumeScreen = ({ onDone, onCancel }: CreateResumeScreenProps
     try {
       const metroNames = Array.from(selectedMetro).map((id) => metroStationName(userCity, id)).filter(Boolean);
       const data = await callFunction<{ resume: { id: string; status: string } }>('freelancer-resumes', {
-        action: 'create',
+        action: isEdit ? 'update' : 'create',
         first_name: profile?.first_name,
         last_name: profile?.last_name,
         phone: profile?.phone,
@@ -63,7 +87,7 @@ export const CreateResumeScreen = ({ onDone, onCancel }: CreateResumeScreenProps
       });
       onDone(data.resume);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Не удалось создать резюме');
+      setError(err instanceof ApiError ? err.message : isEdit ? 'Не удалось сохранить резюме' : 'Не удалось создать резюме');
     } finally {
       setSaving(false);
     }
@@ -72,8 +96,8 @@ export const CreateResumeScreen = ({ onDone, onCancel }: CreateResumeScreenProps
   return (
     <Screen>
       <ScreenHeader
-        title="Создание резюме"
-        subtitle="Расскажите о себе, чтобы видеть вакансии и замены"
+        title={isEdit ? 'Моё резюме' : 'Создание резюме'}
+        subtitle={isEdit ? 'Изменения увидят владельцы ПВЗ' : 'Расскажите о себе, чтобы видеть вакансии и замены'}
         variant="freelancer"
         onBack={onCancel}
       />
@@ -119,7 +143,7 @@ export const CreateResumeScreen = ({ onDone, onCancel }: CreateResumeScreenProps
       {error && <ErrorText>{error}</ErrorText>}
 
       <Button onClick={handleCreate} disabled={saving} style={{ marginTop: 4 }}>
-        {saving ? 'Создание...' : 'Создать резюме'}
+        {saving ? 'Сохранение...' : isEdit ? 'Сохранить' : 'Создать резюме'}
       </Button>
 
       {showMetroSelector && userCity !== 'Другое' && (

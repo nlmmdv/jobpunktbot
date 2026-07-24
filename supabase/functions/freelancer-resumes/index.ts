@@ -35,23 +35,37 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    if (action === "get") {
-      const { data: resume, error } = await supabase
+    // Берём последнее резюме, а не .single(): тот возвращает PGRST116 и когда
+    // строк нет, и когда их несколько, а код трактовал обе ситуации как
+    // «резюме нет» — из-за этого дубликаты прятали резюме и плодились дальше.
+    const latestResume = async () => {
+      const { data, error } = await supabase
         .from("freelancer_resumes")
         .select("*")
         .eq("telegram_id", userId)
-        .single();
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
-        throw error;
-      }
+      if (error) throw error;
+      return data;
+    };
 
+    if (action === "get") {
+      const resume = await latestResume();
       const rating = await ratingFor(supabase, userId);
 
       return jsonResponse({ success: true, resume: resume || null, ...rating });
     }
 
     if (action === "create") {
+      // Второе резюме создавать нельзя: у человека оно одно, а дубликаты
+      // показываются владельцу как разные кандидаты.
+      const existing = await latestResume();
+      if (existing) {
+        throw new LimitError("Резюме уже создано — его можно отредактировать");
+      }
+
       const { data: resume, error } = await supabase
         .from("freelancer_resumes")
         .insert({
@@ -77,6 +91,13 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update") {
+      // Правим конкретную запись, а не все строки этого telegram_id: при
+      // дубликатах прежний вариант молча перезаписывал их все.
+      const target = await latestResume();
+      if (!target) {
+        return jsonResponse({ success: false, error: "Резюме не найдено" }, 404);
+      }
+
       const { data: resume, error } = await supabase
         .from("freelancer_resumes")
         .update({
@@ -92,6 +113,8 @@ Deno.serve(async (req) => {
           status: data.status || "active",
           updated_at: new Date().toISOString(),
         })
+        .eq("id", target.id)
+        // telegram_id оставляем в условии как страховку: править можно только своё.
         .eq("telegram_id", userId)
         .select()
         .single();

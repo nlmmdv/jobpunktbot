@@ -28,7 +28,7 @@ export const OwnerMainScreen = () => {
   const [screen, setScreen] = useState<Tab>('menu');
   const back = () => setScreen('menu');
 
-  const isModerator = profile?.role === 'admin' || profile?.role === 'moderator';
+  const isModerator = profile?.role === 'admin';
   const menuItems = isModerator ? MODERATOR_MENU : MENU;
 
   // Каждый экран сам рисует свою шапку с «Назад» (ScreenHeader).

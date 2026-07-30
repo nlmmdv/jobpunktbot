@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { callFunction } from '../lib/api';
-import { Screen, ScreenHeader, Card, Button, Badge, Loading, SectionTitle, Chip } from '../components/ui';
+import { Screen, Card, Button, Badge, Loading, SectionTitle } from '../components/ui';
 
 interface NewUser {
   id: string;
@@ -43,7 +43,7 @@ export const ModerationDashboard = ({ onBack }: { onBack: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const isModerator = profile?.role === 'admin' || profile?.role === 'moderator';
+  const isModerator = profile?.role === 'admin';
 
   useEffect(() => {
     if (!isModerator) return;
@@ -204,7 +204,7 @@ export const ModerationDashboard = ({ onBack }: { onBack: () => void }) => {
             <Card
               variant="owner"
               onClick={() => setTab('users')}
-              style={{ textAlign: 'center', cursor: 'pointer', transition: 'transform 0.2s', hover: { transform: 'scale(1.05)' } }}
+              style={{ textAlign: 'center', cursor: 'pointer', transition: 'transform 0.2s' }}
             >
               <div style={{ fontSize: 28, fontWeight: 700, color: '#2563EB' }}>{stats.new_users_today}</div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Новых пользователей</div>

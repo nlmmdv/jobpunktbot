@@ -3,7 +3,7 @@
  * Логирует сообщения в консоль вместо отправки через Telegram
  */
 
-import { BotEventPayload } from './telegram-types';
+import type { BotEventPayload } from './telegram-types';
 
 // Хранилище для тестирования
 export const mockMessageLog: Array<{

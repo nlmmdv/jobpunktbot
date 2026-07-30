@@ -48,7 +48,7 @@ export const ComplaintModal = ({ isOpen, onClose, complaintType, targetId, targe
       const functionName = complaintType === 'user' ? 'submit-complaint' : 'submit-company-complaint';
       const bodyKey = complaintType === 'user' ? 'reported_user_id' : 'reported_company_id';
 
-      await callFunction('submit-complaint', {
+      await callFunction(functionName, {
         [bodyKey]: targetId,
         reason: selectedReason,
         description: description || undefined,

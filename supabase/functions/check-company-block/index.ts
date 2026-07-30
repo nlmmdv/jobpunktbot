@@ -1,29 +1,34 @@
-import { handlePublicEdgeFunction } from "../_shared/edge-function-utils.ts";
+import { handleEdgeFunction } from "../_shared/edge-function-utils.ts";
+import { checkBlockStatus } from "../_shared/moderation.ts";
 
-async function checkCompanyBlock(supabase: any, body: Record<string, unknown>) {
-  const { owner_id } = body as { owner_id: string };
+// Проверка блокировки на входе в приложение. Имя функции историческое —
+// она проверяет и самого пользователя, и его компанию за один вызов.
+//
+// Субъекты определяются по проверенному telegram_id из подписи initData, поэтому
+// параметров не требуется и чужую блокировку запросить нельзя.
+//
+// Источник правды — moderation_blocks (учитывает срок действия и снятие вручную),
+// а не owner_profiles.status: этот CHECK-констрейнт принадлежит общей платформе.
+Deno.serve((req) =>
+  handleEdgeFunction(req, async (supabase, telegramId, _body) => {
+    const [{ data: profile }, { data: company }] = await Promise.all([
+      supabase.from("profiles").select("id").eq("telegram_id", telegramId).maybeSingle(),
+      supabase.from("owner_profiles").select("id").eq("telegram_id", telegramId).maybeSingle(),
+    ]);
 
-  if (!owner_id) {
-    throw new Error("Missing owner_id");
-  }
+    const [userStatus, companyStatus] = await Promise.all([
+      profile
+        ? checkBlockStatus(supabase, "user", profile.id)
+        : Promise.resolve({ is_blocked: false, blocks: [] }),
+      company
+        ? checkBlockStatus(supabase, "company", company.id)
+        : Promise.resolve({ is_blocked: false, blocks: [] }),
+    ]);
 
-  // Проверить статус компании
-  const { data: company, error } = await supabase
-    .from("owner_profiles")
-    .select("id, status")
-    .eq("id", owner_id)
-    .single();
-
-  if (error && error.code !== "PGRST116") {
-    throw new Error(`Failed to check company: ${error.message}`);
-  }
-
-  const isBlocked = company?.status === "blocked";
-
-  return {
-    is_blocked: isBlocked,
-    company_id: owner_id,
-  };
-}
-
-Deno.serve((req) => handlePublicEdgeFunction(req, checkCompanyBlock));
+    return {
+      is_blocked: userStatus.is_blocked || companyStatus.is_blocked,
+      blocked_subject: userStatus.is_blocked ? "user" : companyStatus.is_blocked ? "company" : null,
+      blocks: [...userStatus.blocks, ...companyStatus.blocks],
+    };
+  })
+);

@@ -39,11 +39,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setState('loading');
 
     try {
-      // DEV MODE: Check for role parameter in URL
-      if (import.meta.env.DEV) {
-        const params = new URLSearchParams(window.location.search);
-        const devRole = params.get('devRole') || 'freelancer';
+      // DEV MODE: подставной профиль только при явном ?devRole в URL.
+      // Без параметра локальная сборка идёт обычным путём через tg-auth,
+      // чтобы модерацию можно было проверять на реальных данных.
+      const params = new URLSearchParams(window.location.search);
+      const devRole = params.get('devRole');
 
+      if (import.meta.env.DEV && devRole) {
         let devProfile: Profile;
         let authState: AuthState;
 
@@ -81,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             telegram_id: 406489240,
             first_name: 'Admin',
             last_name: 'Test',
-            role: 'administrator',
+            role: 'admin',
             status: 'active',
             created_at: '2022-01-01T00:00:00Z',
             rating: 5.0,
@@ -122,71 +124,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('✅ User authenticated, role:', authProfile.role);
 
-      // Проверить статус блокировки в рабочем режиме
-      if (import.meta.env.DEV === false) {
-        try {
-          // Проверить блокировку пользователя
-          const blockStatus = await callFunction<{
-            is_blocked: boolean;
-            blocks: { reason: string; unblock_at: string | null }[];
-          }>('check-user-block', {
-            user_id: authProfile.id,
-          });
+      // Проверить блокировку: один вызов проверяет и пользователя, и его компанию,
+      // субъекты определяются на сервере по подписанному telegram_id.
+      try {
+        const blockStatus = await callFunction<{
+          is_blocked: boolean;
+          blocked_subject: 'user' | 'company' | null;
+          blocks: { reason: string; unblock_at: string | null }[];
+        }>('check-company-block', {});
 
-          if (blockStatus.is_blocked) {
-            const block = blockStatus.blocks[0];
-            const reason = block.reason;
-            const unblockTime = block.unblock_at
-              ? new Date(block.unblock_at).toLocaleString('ru')
-              : 'никогда';
-            setError(`🚫 Ваш аккаунт заблокирован.\n\nПричина: ${reason}\nРазблокировка: ${unblockTime}`);
-            setState('no_profile');
-            return;
-          }
-
-          // Проверить блокировку владельца если это owner
-          if (authProfile.role === 'owner' && authProfile.owner_id) {
-            const ownerBlockStatus = await callFunction<{
-              is_blocked: boolean;
-              blocks: { reason: string; unblock_at: string | null }[];
-            }>('check-owner-block', {
-              owner_id: authProfile.owner_id,
-            });
-
-            if (ownerBlockStatus.is_blocked) {
-              const block = ownerBlockStatus.blocks[0];
-              const reason = block.reason;
-              const unblockTime = block.unblock_at
-                ? new Date(block.unblock_at).toLocaleString('ru')
-                : 'никогда';
-              setError(`🚫 Ваш аккаунт заблокирован.\n\nПричина: ${reason}\nРазблокировка: ${unblockTime}`);
-              setState('no_profile');
-              return;
-            }
-
-            // Проверить блокировку компании
-            const companyBlockStatus = await callFunction<{
-              is_blocked: boolean;
-              blocks: { reason: string; unblock_at: string | null }[];
-            }>('check-company-block', {
-              owner_id: authProfile.owner_id,
-            });
-
-            if (companyBlockStatus.is_blocked) {
-              const block = companyBlockStatus.blocks[0];
-              const reason = block.reason;
-              const unblockTime = block.unblock_at
-                ? new Date(block.unblock_at).toLocaleString('ru')
-                : 'никогда';
-              setError(`🚫 Ваша компания заблокирована.\n\nПричина: ${reason}\nРазблокировка: ${unblockTime}`);
-              setState('no_profile');
-              return;
-            }
-          }
-        } catch (err) {
-          console.warn('Error checking block status:', err);
-          // Продолжаем если проверка не сработала
+        if (blockStatus.is_blocked) {
+          const block = blockStatus.blocks[0];
+          const unblockTime = block?.unblock_at
+            ? new Date(block.unblock_at).toLocaleString('ru')
+            : 'бессрочно';
+          const subject =
+            blockStatus.blocked_subject === 'company' ? 'Ваша компания заблокирована' : 'Ваш аккаунт заблокирован';
+          setError(
+            `🚫 ${subject}.\n\nПричина: ${block?.reason || 'не указана'}\nРазблокировка: ${unblockTime}`
+          );
+          setState('no_profile');
+          return;
         }
+      } catch (err) {
+        // Недоступность проверки не должна закрывать вход добросовестным пользователям.
+        console.warn('Error checking block status:', err);
       }
 
       setProfile(authProfile);

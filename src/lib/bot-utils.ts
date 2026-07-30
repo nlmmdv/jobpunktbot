@@ -1,12 +1,12 @@
 import { callFunction } from './api';
-import { BotEventPayload } from './telegram-types';
+import type { BotEventPayload } from './telegram-types';
 
 /**
  * Триггер события для отправки сообщения в Telegram бот
  */
 export async function triggerBotEvent(event: BotEventPayload): Promise<void> {
   try {
-    await callFunction('handle-bot-events', event);
+    await callFunction('handle-bot-events', { ...event });
     console.log('✅ Bot event triggered:', event.type);
   } catch (error) {
     console.error('❌ Failed to trigger bot event:', error);

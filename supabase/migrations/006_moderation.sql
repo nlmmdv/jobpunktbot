@@ -15,6 +15,63 @@
 -- принадлежат общей платформе ('active','inactive' и 'active','inactive','banned').
 -- Источник правды о блокировке — таблица moderation_blocks ниже.
 
+-- ---------------------------------------------------------------------------
+-- ПРЕДОХРАНИТЕЛЬ.
+-- Имена `complaints` и `company_complaints` универсальные, и в общей БД такие
+-- таблицы могли завестись у платформы. Тогда CREATE TABLE IF NOT EXISTS молча
+-- ничего не сделает, а ENABLE ROW LEVEL SECURITY ниже включит RLS на ЧУЖОЙ
+-- таблице и отрежет платформе доступ — ровно тот сценарий, что описан в 004.
+--
+-- Поэтому: если таблица уже есть, но без наших ключевых колонок, миграция
+-- аварийно останавливается. RLS включается только на таблицах, которые
+-- создала именно эта миграция.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  conflicts text := '';
+BEGIN
+  IF to_regclass('public.complaints') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'complaints'
+         AND column_name = 'reported_user_id'
+     )
+  THEN
+    conflicts := conflicts || ' complaints';
+  END IF;
+
+  IF to_regclass('public.company_complaints') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'company_complaints'
+         AND column_name = 'reported_company_id'
+     )
+  THEN
+    conflicts := conflicts || ' company_complaints';
+  END IF;
+
+  IF conflicts <> '' THEN
+    RAISE EXCEPTION
+      'Конфликт имён таблиц:%. Эти таблицы уже существуют в общей БД и принадлежат не этому репозиторию. Миграция остановлена, чтобы не включить RLS на чужих данных. Переименуйте наши таблицы (например в pp_complaints / pp_company_complaints) и синхронно поправьте submit-complaint, submit-company-complaint и _shared/moderation.ts.',
+      conflicts;
+  END IF;
+END $$;
+
+-- Запоминаем, какие таблицы существовали ДО миграции: на них RLS не трогаем.
+CREATE TEMP TABLE _pre_existing_moderation_tables AS
+SELECT unnest(ARRAY[
+  'moderation_blocks', 'moderation_warnings',
+  'complaints', 'company_complaints', 'moderation_actions'
+]) AS name
+WHERE false;
+
+INSERT INTO _pre_existing_moderation_tables (name)
+SELECT t FROM unnest(ARRAY[
+  'moderation_blocks', 'moderation_warnings',
+  'complaints', 'company_complaints', 'moderation_actions'
+]) AS t
+WHERE to_regclass('public.' || t) IS NOT NULL;
+
 -- Блокировки пользователей и компаний (временные и бессрочные)
 CREATE TABLE IF NOT EXISTS moderation_blocks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -95,11 +152,26 @@ CREATE INDEX IF NOT EXISTS moderation_actions_created_idx
   ON moderation_actions (created_at DESC);
 
 -- Доступ только у service_role: RLS включён, политик нет.
-ALTER TABLE moderation_blocks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE moderation_warnings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE complaints ENABLE ROW LEVEL SECURITY;
-ALTER TABLE company_complaints ENABLE ROW LEVEL SECURITY;
-ALTER TABLE moderation_actions ENABLE ROW LEVEL SECURITY;
+-- Трогаем ТОЛЬКО таблицы, созданные этой миграцией: если таблица существовала
+-- раньше, её настройки RLS не наши и меняться не должны.
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'moderation_blocks', 'moderation_warnings',
+    'complaints', 'company_complaints', 'moderation_actions'
+  ]
+  LOOP
+    IF EXISTS (SELECT 1 FROM _pre_existing_moderation_tables p WHERE p.name = t) THEN
+      RAISE NOTICE 'Таблица % существовала до миграции — RLS не трогаем.', t;
+    ELSE
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    END IF;
+  END LOOP;
+END $$;
+
+DROP TABLE IF EXISTS _pre_existing_moderation_tables;
 
 -- Назначить администратора (роль 'admin' уже разрешена CHECK-констрейнтом profiles):
 --   UPDATE profiles SET role = 'admin' WHERE telegram_id = <ваш_telegram_id>;

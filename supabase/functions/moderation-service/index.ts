@@ -6,6 +6,7 @@ import {
   getWarningCounts,
   logAction,
   requireModerator,
+  sanitizeSearchTerm,
   unblockSubject,
   warnSubject,
 } from "../_shared/moderation.ts";
@@ -53,7 +54,7 @@ Deno.serve((req) =>
         .order("created_at", { ascending: false });
 
       if (search) {
-        const term = String(search).trim();
+        const term = sanitizeSearchTerm(search);
         const numeric = /^\d+$/.test(term);
         query = query.or(
           [
@@ -135,7 +136,7 @@ Deno.serve((req) =>
         .order("created_at", { ascending: false });
 
       if (search) {
-        const term = String(search).trim();
+        const term = sanitizeSearchTerm(search);
         const numeric = /^\d+$/.test(term);
         query = query.or(
           [

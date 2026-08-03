@@ -4,6 +4,7 @@ import {
   getOpenComplaintCounts,
   getWarningCounts,
   requireModerator,
+  sanitizeSearchTerm,
 } from "../_shared/moderation.ts";
 
 // Раньше функция была публичной и ходила в БД под service_role — то есть любой
@@ -25,7 +26,7 @@ Deno.serve((req) =>
       .order("created_at", { ascending: false });
 
     if (search) {
-      const term = String(search).trim();
+      const term = sanitizeSearchTerm(search);
       const numeric = /^\d+$/.test(term);
       query = query.or(
         [

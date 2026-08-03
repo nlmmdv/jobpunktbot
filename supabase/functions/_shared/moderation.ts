@@ -8,6 +8,18 @@
 
 export type SubjectType = "user" | "company";
 
+/**
+ * Готовит строку поиска для подстановки в PostgREST-фильтр `.or(...)`.
+ * Запятая, скобки и точка там — синтаксис: без очистки ввод вида `a,b)` ломает
+ * фильтр или подменяет условие. Оставляем только безопасные символы.
+ */
+export function sanitizeSearchTerm(raw: unknown): string {
+  return String(raw ?? "")
+    .replace(/[,()*.\\%"']/g, " ")
+    .trim()
+    .slice(0, 100);
+}
+
 export interface ModeratorProfile {
   id: string;
   telegram_id: number;

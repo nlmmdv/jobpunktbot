@@ -131,7 +131,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           is_blocked: boolean;
           blocked_subject: 'user' | 'company' | null;
           blocks: { reason: string; unblock_at: string | null }[];
-        }>('check-company-block', {});
+        }>(
+          'check-company-block',
+          {},
+          // Без ретраев и с коротким таймаутом: это вспомогательная проверка на
+          // пути входа, и на плохой сети она не должна задерживать логин
+          // (по умолчанию было бы 3 повтора с задержкой ~7 секунд).
+          { retries: 0, timeout: 5000 }
+        );
 
         if (blockStatus.is_blocked) {
           const block = blockStatus.blocks[0];

@@ -171,7 +171,9 @@ BEGIN
   END LOOP;
 END $$;
 
-DROP TABLE IF EXISTS _pre_existing_moderation_tables;
+-- Явно pg_temp: чтобы DROP ни при каких настройках search_path не мог задеть
+-- одноимённую постоянную таблицу.
+DROP TABLE IF EXISTS pg_temp._pre_existing_moderation_tables;
 
 -- Назначить администратора (роль 'admin' уже разрешена CHECK-констрейнтом profiles):
 --   UPDATE profiles SET role = 'admin' WHERE telegram_id = <ваш_telegram_id>;

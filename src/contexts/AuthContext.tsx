@@ -42,10 +42,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // DEV MODE: подставной профиль только при явном ?devRole в URL.
       // Без параметра локальная сборка идёт обычным путём через tg-auth,
       // чтобы модерацию можно было проверять на реальных данных.
-      const params = new URLSearchParams(window.location.search);
-      const devRole = params.get('devRole');
-
-      if (import.meta.env.DEV && devRole) {
+      // Условие начинается с import.meta.env.DEV, чтобы сборщик вырезал весь блок
+      // из прод-бандла целиком — вместе с чтением параметра из URL.
+      if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('devRole')) {
+        const devRole = new URLSearchParams(window.location.search).get('devRole');
         let devProfile: Profile;
         let authState: AuthState;
 

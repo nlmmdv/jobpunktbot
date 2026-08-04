@@ -46,7 +46,10 @@ export const ComplaintModal = ({ isOpen, onClose, complaintType, targetId, targe
     setIsSubmitting(true);
     try {
       const functionName = complaintType === 'user' ? 'submit-complaint' : 'submit-company-complaint';
-      const bodyKey = complaintType === 'user' ? 'reported_user_id' : 'reported_company_id';
+      // На компанию клиент знает только telegram_id владельца (он есть в карточке
+      // вакансии), а в company_complaints.reported_company_id лежит uuid из
+      // owner_profiles. Резолвим на сервере, иначе Postgres отвергнет вставку.
+      const bodyKey = complaintType === 'user' ? 'reported_user_id' : 'owner_telegram_id';
 
       await callFunction(functionName, {
         [bodyKey]: targetId,

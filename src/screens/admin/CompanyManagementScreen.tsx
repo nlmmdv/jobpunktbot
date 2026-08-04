@@ -580,7 +580,7 @@ export const CompanyManagementScreen = ({ onBack }: { onBack: () => void }) => {
                   }}
                 >
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {complaint.reported_by.first_name} {complaint.reported_by.last_name || ''}
+                    Пожаловался: {complaint.reported_by.first_name} {complaint.reported_by.last_name || ''}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
                     ID: {complaint.reported_by.telegram_id}

@@ -30,6 +30,8 @@ interface Stats {
   new_vacancies_today: number;
   matches_this_week: number;
   suspicious_vacancies: number;
+  open_complaints?: number;
+  active_blocks?: number;
 }
 
 type Tab = 'stats' | 'users' | 'vacancies' | 'suspicious';
@@ -235,6 +237,16 @@ export const ModerationDashboard = ({ onBack }: { onBack: () => void }) => {
               <div style={{ fontSize: 28, fontWeight: 700, color: '#EF4444' }}>{stats.suspicious_vacancies}</div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Подозрительных</div>
               <div style={{ fontSize: 10, color: '#EF4444', marginTop: 6, fontWeight: 600 }}>→ Открыть список</div>
+            </Card>
+            <Card variant="owner" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#D97706' }}>{stats.open_complaints ?? 0}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Открытых жалоб</div>
+              <div style={{ fontSize: 10, color: '#999', marginTop: 6 }}>📋 Разбор в разделах</div>
+            </Card>
+            <Card variant="owner" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#991B1B' }}>{stats.active_blocks ?? 0}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Активных блокировок</div>
+              <div style={{ fontSize: 10, color: '#999', marginTop: 6 }}>🚫 Сейчас действуют</div>
             </Card>
           </div>
         </>

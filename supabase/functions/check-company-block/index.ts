@@ -8,20 +8,26 @@ import { checkBlockStatus } from "../_shared/moderation.ts";
 // параметров не требуется и чужую блокировку запросить нельзя.
 //
 // Источник правды — moderation_blocks (учитывает срок действия и снятие вручную),
-// а не owner_profiles.status: этот CHECK-констрейнт принадлежит общей платформе.
+// а не profiles.status: этот CHECK-констрейнт принадлежит общей платформе.
 Deno.serve((req) =>
   handleEdgeFunction(req, async (supabase, telegramId, _body) => {
-    const [{ data: profile }, { data: company }] = await Promise.all([
-      supabase.from("profiles").select("id").eq("telegram_id", telegramId).maybeSingle(),
-      supabase.from("owner_profiles").select("id").eq("telegram_id", telegramId).maybeSingle(),
-    ]);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("telegram_id", telegramId)
+      .maybeSingle();
 
+    if (!profile) {
+      return { is_blocked: false, blocked_subject: null, blocks: [] };
+    }
+
+    // ПВЗ — это профиль владельца, отдельной таблицы компаний нет. Поэтому
+    // проверяем оба типа блокировки по одному и тому же profiles.id: 'user'
+    // ставится в разделе пользователей, 'company' — в разделе компаний.
     const [userStatus, companyStatus] = await Promise.all([
-      profile
-        ? checkBlockStatus(supabase, "user", profile.id)
-        : Promise.resolve({ is_blocked: false, blocks: [] }),
-      company
-        ? checkBlockStatus(supabase, "company", company.id)
+      checkBlockStatus(supabase, "user", profile.id),
+      profile.role === "owner"
+        ? checkBlockStatus(supabase, "company", profile.id)
         : Promise.resolve({ is_blocked: false, blocks: [] }),
     ]);
 

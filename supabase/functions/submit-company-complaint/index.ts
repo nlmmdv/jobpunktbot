@@ -28,8 +28,8 @@ Deno.serve((req) =>
     }
 
     // Клиент видит только telegram_id владельца (он есть в карточке вакансии),
-    // а в колонке лежит uuid из owner_profiles — резолвим здесь, иначе вставка
-    // упадёт на несовпадении типов.
+    // а в колонке лежит uuid профиля — резолвим здесь, иначе вставка упадёт
+    // на несовпадении типов.
     let companyId: string | null = null;
 
     if (reported_company_id && UUID_RE.test(reported_company_id)) {
@@ -42,10 +42,12 @@ Deno.serve((req) =>
         throw new Error("Нужен owner_telegram_id или reported_company_id");
       }
 
+      // Компания = профиль владельца: отдельной таблицы ПВЗ в проде нет.
       const { data: company } = await supabase
-        .from("owner_profiles")
+        .from("profiles")
         .select("id")
         .eq("telegram_id", ownerTelegramId)
+        .eq("role", "owner")
         .maybeSingle();
 
       if (!company) {

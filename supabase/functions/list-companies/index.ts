@@ -20,9 +20,11 @@ Deno.serve((req) =>
       offset?: number;
     };
 
+    // ПВЗ — профиль владельца: отдельной таблицы компаний в проде нет.
     let query = supabase
-      .from("owner_profiles")
-      .select("id, telegram_id, organization_name, phone, city, status, created_at")
+      .from("profiles")
+      .select("id, telegram_id, first_name, last_name, phone, city, status, created_at")
+      .eq("role", "owner")
       .order("created_at", { ascending: false });
 
     if (search) {
@@ -30,7 +32,8 @@ Deno.serve((req) =>
       const numeric = /^\d+$/.test(term);
       query = query.or(
         [
-          `organization_name.ilike.%${term}%`,
+          `first_name.ilike.%${term}%`,
+          `last_name.ilike.%${term}%`,
           `city.ilike.%${term}%`,
           ...(numeric ? [`telegram_id.eq.${term}`] : []),
         ].join(",")
@@ -56,6 +59,7 @@ Deno.serve((req) =>
     return {
       companies: (companies || []).map((c: any) => ({
         ...c,
+        organization_name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Без названия",
         is_blocked: blocks.has(c.id),
         block: blocks.get(c.id) || null,
         warning_count: warnings.get(c.id) || 0,

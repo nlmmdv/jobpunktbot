@@ -17,10 +17,12 @@ Deno.serve((req) =>
       throw new Error("Не указан owner_id");
     }
 
+    // Компания = профиль владельца: отдельной таблицы ПВЗ в проде нет.
     const { data: company, error } = await supabase
-      .from("owner_profiles")
+      .from("profiles")
       .select("id, telegram_id")
       .eq("id", owner_id)
+      .eq("role", "owner")
       .maybeSingle();
 
     if (error) {

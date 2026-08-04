@@ -155,7 +155,7 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
                 onClick={() => {
                   // Жалоба уходит на компанию, а не на вакансию: клиент знает
                   // только telegram_id владельца, сервер сам резолвит его в
-                  // owner_profiles.id.
+                  // profiles.id.
                   setComplaintTarget({
                     telegramId: String(vacancy.telegram_id || ''),
                     name: 'ПВЗ ' + vacancy.address,

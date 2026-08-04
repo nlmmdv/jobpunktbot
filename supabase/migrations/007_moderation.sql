@@ -7,13 +7,17 @@
 --
 -- Поэтому миграция СТРОГО аддитивная:
 --   • создаёт только НОВЫЕ таблицы, принадлежащие этому репозиторию;
---   • НЕ трогает profiles / owner_profiles / vacancies — ни колонок, ни CHECK-констрейнтов;
+--   • НЕ трогает profiles / owner_vacancies — ни колонок, ни CHECK-констрейнтов;
 --   • RLS включается только на новых таблицах, политик нет => доступ лишь у service_role
 --     (Edge Functions), что не влияет на политики общей платформы.
 --
--- Блокировка НЕ пишется в owner_profiles.status / profiles.status: их CHECK-констрейнты
--- принадлежат общей платформе ('active','inactive' и 'active','inactive','banned').
--- Источник правды о блокировке — таблица moderation_blocks ниже.
+-- Блокировка НЕ пишется в profiles.status: этот CHECK-констрейнт принадлежит
+-- общей платформе ('active','inactive','banned'). Источник правды о блокировке —
+-- таблица moderation_blocks ниже.
+--
+-- Отдельной таблицы компаний в проде нет: ПВЗ — это профиль с role='owner'.
+-- Поэтому subject_id и reported_company_id ссылаются на profiles.id, а
+-- subject_type лишь различает, из какого раздела модерации пришло действие.
 
 -- ---------------------------------------------------------------------------
 -- ПРЕДОХРАНИТЕЛЬ.
@@ -76,7 +80,7 @@ WHERE to_regclass('public.' || t) IS NOT NULL;
 CREATE TABLE IF NOT EXISTS moderation_blocks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_type TEXT NOT NULL CHECK (subject_type IN ('user', 'company')),
-  subject_id UUID NOT NULL,               -- profiles.id либо owner_profiles.id
+  subject_id UUID NOT NULL,               -- profiles.id (для 'user' и для 'company')
   subject_telegram_id BIGINT,             -- денормализация: быстрая проверка на входе
   reason TEXT NOT NULL,
   expires_at TIMESTAMP WITH TIME ZONE,    -- NULL = бессрочная блокировка
@@ -124,7 +128,7 @@ CREATE INDEX IF NOT EXISTS complaints_reported_user_idx ON complaints (reported_
 CREATE TABLE IF NOT EXISTS company_complaints (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reported_by UUID NOT NULL,              -- profiles.id автора жалобы
-  reported_company_id UUID NOT NULL,      -- owner_profiles.id
+  reported_company_id UUID NOT NULL,      -- profiles.id владельца ПВЗ
   reason TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'rejected')),

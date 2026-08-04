@@ -2,9 +2,12 @@
 // жалобы и журнал действий. Используется moderation-service и точечными функциями
 // (list-companies, block-company, warn-company, check-company-block).
 //
-// ВАЖНО: блокировка НЕ пишется в profiles.status / owner_profiles.status — их
-// CHECK-констрейнты принадлежат общей платформе (см. 006_moderation.sql).
+// ВАЖНО: блокировка НЕ пишется в profiles.status — этот CHECK-констрейнт
+// принадлежит общей платформе (см. 007_moderation.sql).
 // Источник правды — таблица moderation_blocks.
+//
+// ПВЗ отдельной таблицей не представлен: компания — это профиль с role='owner'.
+// subject_type различает, из какого раздела модерации пришло действие.
 
 export type SubjectType = "user" | "company";
 

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
+import { callFunction, errorText } from '../../lib/api';
 import { Screen, ScreenHeader, Card, Button, TextField, TextArea, Label, Chip, Badge, Loading, EmptyState, Modal } from '../../components/ui';
 import { MetroSelector, SelectedMetroChips, metroStationName } from '../../components/MetroSelector';
+import { TEXT_LIMITS } from '../../constants';
 
 interface Vacancy {
   id: string;
@@ -140,7 +141,7 @@ export const MyVacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       await loadVacancies();
     } catch (err) {
       console.error('Failed to publish vacancy:', err);
-      alert('Ошибка при публикации');
+      alert(errorText(err, 'Ошибка при публикации'));
     }
   };
 
@@ -241,7 +242,7 @@ export const MyVacanciesScreen = ({ onBack }: { onBack: () => void }) => {
 
           <TextField variant="owner" label="Оплата (₽) *" type="number" value={formData.payment || ''} onChange={(e) => setFormData({ ...formData, payment: parseInt(e.target.value) || 0 })} />
 
-          <TextArea variant="owner" label="Описание" rows={3} placeholder="Доп. информация..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+          <TextArea variant="owner" label="Описание" rows={3} maxLength={TEXT_LIMITS.DESCRIPTION} placeholder="Доп. информация..." value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
 
           {showMetroSelector && userCity !== 'Другое' && (
             <MetroSelector

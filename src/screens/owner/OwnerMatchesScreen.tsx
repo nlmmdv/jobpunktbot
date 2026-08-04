@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
-import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState, type BadgeTone } from '../../components/ui';
+import { callFunction, errorText } from '../../lib/api';
+import { Screen, ScreenHeader, Card, Button, Badge, Segmented, Loading, EmptyState, type BadgeTone } from '../../components/ui';
+import { RatingBadge } from '../../components/RatingBadge';
 
 interface Match {
   id: string;
@@ -21,6 +22,8 @@ interface Match {
     last_name?: string;
     telegram_username?: string;
     city?: string;
+    avg_rating?: number | null;
+    rating_count?: number;
   };
 }
 
@@ -94,7 +97,7 @@ export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
       loadMatches();
     } catch (err) {
       console.error('Failed to accept:', err);
-      alert('❌ Ошибка при принятии заявки');
+      alert(`❌ ${errorText(err, 'Ошибка при принятии заявки')}`);
     }
   };
 
@@ -104,7 +107,7 @@ export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
       loadMatches();
     } catch (err) {
       console.error('Failed to reject:', err);
-      alert('❌ Ошибка при отклонении');
+      alert(`❌ ${errorText(err, 'Ошибка при отклонении')}`);
     }
   };
 
@@ -125,14 +128,14 @@ export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
     <Screen>
       <ScreenHeader title="📬 Отклики" variant="owner" onBack={onBack} />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Button variant="owner" tone={tab === 'incoming' ? 'primary' : 'secondary'} small onClick={() => setTab('incoming')}>
-          Входящие
-        </Button>
-        <Button variant="owner" tone={tab === 'sent' ? 'primary' : 'secondary'} small onClick={() => setTab('sent')}>
-          Мои предложения
-        </Button>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'incoming', label: 'Входящие' },
+          { value: 'sent', label: 'Мои предложения' },
+        ]}
+      />
 
       {displayMatches.length === 0 && (
         <EmptyState>{tab === 'incoming' ? '📝 Нет входящих откликов' : '📬 Нет отправленных предложений'}</EmptyState>
@@ -146,8 +149,11 @@ export const OwnerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
           <Card key={match.id} variant="owner">
             {status && <Badge tone={status.tone}>{status.text}</Badge>}
 
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-              {match.profiles?.first_name} {match.profiles?.last_name}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {match.profiles?.first_name} {match.profiles?.last_name}
+              </div>
+              <RatingBadge avgRating={match.profiles?.avg_rating ?? null} count={match.profiles?.rating_count ?? 0} />
             </div>
 
             <div className="meta">📍 {match.profiles?.city || 'Город не указан'}</div>

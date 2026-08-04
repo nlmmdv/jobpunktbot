@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { callFunction, ApiError } from '../../lib/api';
+import { RatingBadge } from '../../components/RatingBadge';
 import {
   Screen,
   ScreenHeader,
@@ -12,7 +13,7 @@ import {
   Modal,
   type Variant,
 } from '../../components/ui';
-import { CITIES_LIST } from '../../constants';
+import { CITIES_LIST, TEXT_LIMITS } from '../../constants';
 
 interface ProfileScreenProps {
   onBack: () => void;
@@ -30,67 +31,35 @@ const InfoRow = ({ emoji, label, value }: { emoji: string; label: string; value:
 );
 
 export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenProps) => {
-  const { profile, logout } = useAuth();
+  const { profile, applyProfile } = useAuth();
   const [showEditModal, setShowEditModal] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(profile?.photo_url || null);
-  const [rating, setRating] = useState<number | null>(profile?.rating || null);
-  const [reviewCount, setReviewCount] = useState(0);
-  const [complaintCount, setComplaintCount] = useState(0);
   const [formData, setFormData] = useState({
     first_name: profile?.first_name || '',
     last_name: profile?.last_name || '',
     city: profile?.city || CITIES_LIST[0],
-    about: '',
+    about: profile?.about || '',
   });
   const [saving, setSaving] = useState(false);
+  const [rating, setRating] = useState<{ avg_rating: number | null; rating_count: number }>({
+    avg_rating: null,
+    rating_count: 0,
+  });
 
   useEffect(() => {
-    if (profile?.id && import.meta.env.DEV === false) {
-      loadRating();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id]);
-
-  const loadRating = async () => {
-    try {
-      const data = await callFunction<{
-        rating: number;
-        review_count: number;
-        complaint_count: number;
-      }>('get-user-rating', {
-        user_id: profile?.id,
-      });
-      setRating(data.rating);
-      setReviewCount(data.review_count);
-      setComplaintCount(data.complaint_count);
-    } catch (err) {
-      console.error('Failed to load rating:', err);
-    }
-  };
-
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru', { year: 'numeric', month: 'long', day: 'numeric' });
-  };
+    if (!profile?.telegram_id) return;
+    callFunction<{ avg_rating: number | null; rating_count: number }>('get-rating', {
+      telegramId: profile.telegram_id,
+    })
+      .then((r) => setRating({ avg_rating: r.avg_rating, rating_count: r.rating_count }))
+      .catch((err) => console.error('Failed to load rating:', err));
+  }, [profile?.telegram_id]);
 
   const handleSave = async () => {
     if (!profile?.telegram_id) return;
     setSaving(true);
 
     try {
-      const data = await callFunction<{ profile: { first_name: string; last_name: string; city: string; status?: string } }>(
+      const data = await callFunction<{ profile: { first_name: string; last_name: string; city: string; about?: string } }>(
         'update-profile',
         {
           telegramId: profile.telegram_id,
@@ -105,7 +74,16 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
         first_name: data.profile.first_name,
         last_name: data.profile.last_name,
         city: data.profile.city,
-        about: data.profile.status || '',
+        about: data.profile.about || '',
+      });
+      // Прокидываем изменения в контекст, иначе имя/город в шапке остаются
+      // старыми — они читаются из profile, а не из локального formData.
+      applyProfile({
+        ...profile,
+        first_name: data.profile.first_name,
+        last_name: data.profile.last_name,
+        city: data.profile.city,
+        about: data.profile.about,
       });
     } catch (err) {
       console.error('Failed to save profile:', err);
@@ -125,47 +103,21 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
 
       {profile && (
         <>
-          <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            {photoPreview ? (
-              <img
-                src={photoPreview}
-                alt="Профиль"
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  marginBottom: 12,
-                  border: `3px solid var(--accent-${variant})`,
-                }}
-              />
-            ) : (
-              <div className={`avatar ${variant}`} style={{ width: 100, height: 100, fontSize: 40, marginBottom: 12, marginLeft: 'auto', marginRight: 'auto' }}>
-                {profile.first_name?.[0]?.toUpperCase()}
-                {profile.last_name?.[0]?.toUpperCase()}
-              </div>
-            )}
-            <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-              {profile.first_name} {profile.last_name}
-            </div>
-            <div className="subtitle" style={{ textAlign: 'center' }}>
-              {roleLabel}
-            </div>
+          <div className={`avatar ${variant}`}>
+            {profile.first_name?.[0]?.toUpperCase()}
+            {profile.last_name?.[0]?.toUpperCase()}
+          </div>
+          <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+            {profile.first_name} {profile.last_name}
+          </div>
+          <div style={{ textAlign: 'center', marginBottom: 4 }}>
+            <RatingBadge avgRating={rating.avg_rating} count={rating.rating_count} />
+          </div>
+          <div className="subtitle" style={{ textAlign: 'center' }}>
+            {roleLabel}
           </div>
 
           <Card variant={variant} large>
-            <InfoRow emoji="⭐" label="Рейтинг" value={rating ? `${rating.toFixed(1)}/5` : (profile.rating ? `${profile.rating.toFixed(1)}/5` : '—')} />
-            {variant === 'owner' && (
-              <>
-                <div className="info-divider" />
-                <InfoRow emoji="📝" label="Отзывы" value={`${reviewCount} отзыв${reviewCount % 10 === 1 && reviewCount % 100 !== 11 ? '' : 'ов'}`} />
-                <div className="info-divider" />
-                <InfoRow emoji="⚠️" label="Жалобы" value={`${complaintCount} жалоб${complaintCount % 10 === 1 && complaintCount % 100 !== 11 ? 'а' : (complaintCount % 10 >= 2 && complaintCount % 10 <= 4 && (complaintCount % 100 < 10 || complaintCount % 100 >= 20) ? 'ы' : '')}`} />
-              </>
-            )}
-            <div className="info-divider" />
-            <InfoRow emoji="📅" label="Аккаунт создан" value={formatDate(profile.created_at)} />
-            <div className="info-divider" />
             <InfoRow emoji="📱" label="Телефон" value={profile.phone || '—'} />
             <div className="info-divider" />
             <InfoRow emoji="📍" label="Город" value={profile.city || '—'} />
@@ -176,48 +128,11 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
           <Button variant={variant} onClick={() => setShowEditModal(true)}>
             ✏️ Редактировать
           </Button>
-
-          <Button variant={variant} tone="secondary" onClick={logout} style={{ marginTop: 8 }}>
-            🚪 Выход
-          </Button>
         </>
       )}
 
       {showEditModal && (
         <Modal title="Редактировать профиль" onClose={() => !saving && setShowEditModal(false)}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 8, color: 'var(--text-primary)' }}>
-              📸 Фотография профиля
-            </label>
-            {photoPreview && (
-              <img
-                src={photoPreview}
-                alt="Предпросмотр"
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  marginBottom: 8,
-                  border: `2px solid var(--accent-${variant})`,
-                }}
-              />
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              style={{
-                padding: '10px 12px',
-                borderRadius: 8,
-                border: '1.5px solid var(--border)',
-                fontSize: 12,
-                width: '100%',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-
           <TextField
             variant={variant}
             label="Имя"
@@ -246,6 +161,7 @@ export const ProfileScreen = ({ onBack, variant = 'freelancer' }: ProfileScreenP
           <TextArea
             variant={variant}
             label="О себе"
+            maxLength={TEXT_LIMITS.ABOUT}
             value={formData.about}
             onChange={(e) => setFormData({ ...formData, about: e.target.value })}
             placeholder="Расскажите о своем опыте..."

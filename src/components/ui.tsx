@@ -166,6 +166,10 @@ export interface MenuItem<Screen extends string> {
   screen: Screen;
   icon: string;
   label: string;
+  /** Подпись под названием пункта. */
+  sub?: string;
+  /** Счётчик-бейдж в углу плитки (например число новых откликов). */
+  count?: number;
   wide?: boolean;
 }
 
@@ -186,9 +190,40 @@ export function MenuGrid<Screen extends string>({
           className={cx('menu-card', variant, item.wide && 'wide')}
           onClick={() => onSelect(item.screen)}
         >
-          <span className="icon">{item.icon}</span>
-          <span className="label">{item.label}</span>
+          {item.count ? <span className="count">{item.count}</span> : null}
+          <span className="icon-tile">{item.icon}</span>
+          <div>
+            <div className="label">{item.label}</div>
+            {item.sub && <div className="sub">{item.sub}</div>}
+          </div>
         </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Segmented control (вкладки) ─────────────────────────── */
+
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ value: T; label: string }>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="segmented">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className={cx('seg', o.value === value && 'active')}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
       ))}
     </div>
   );

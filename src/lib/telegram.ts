@@ -7,6 +7,10 @@ export async function waitForTelegramReady(timeoutMs = 3000): Promise<void> {
 
   webApp.ready();
   webApp.expand?.();
+  // Страница теперь прокручивается, а вертикальный свайп в Telegram по умолчанию
+  // закрывает мини-апп — пользователь ловил бы это при листании списка вверх.
+  // Метод появился в Bot API 7.7, на старых клиентах его просто нет.
+  webApp.disableVerticalSwipes?.();
 
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {

@@ -2,6 +2,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
 import { triggerBotEvent } from "../_shared/notify.ts";
+import { ratingsFor, EMPTY_RATING } from "../_shared/ratings.ts";
+import { assertRateLimit, RateLimitError } from "../_shared/rate-limit.ts";
+import { COUNT_LIMITS, LimitError } from "../_shared/limits.ts";
+
+/** Начало сегодняшнего дня по Москве — по нему считаем суточный лимит. */
+function startOfTodayMoscow(): string {
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return `${date}T00:00:00+03:00`;
+}
 
 // Реальная схема прода: вакансии лежат в owner_vacancies и НЕ имеют колонки title
 // (заголовок карточки — address). Внешнего ключа job_matches -> profiles нет,
@@ -56,15 +70,25 @@ async function attachProfiles(
   const ids = [...new Set(matches.map((m) => m[idField]).filter(Boolean))];
   if (ids.length === 0) return matches;
 
-  const { data: profiles, error } = await supabase
-    .from("profiles")
-    .select("telegram_id, first_name, last_name, telegram_username, city")
-    .in("telegram_id", ids);
+  const [{ data: profiles, error }, ratings] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("telegram_id, first_name, last_name, telegram_username, city")
+      .in("telegram_id", ids),
+    ratingsFor(supabase, ids),
+  ]);
 
   if (error) throw error;
 
   const byTelegramId = new Map((profiles || []).map((p: any) => [p.telegram_id, p]));
-  return matches.map((m) => ({ ...m, profiles: byTelegramId.get(m[idField]) || null }));
+  // Рейтинг второй стороны кладём в тот же объект profiles — фронт показывает
+  // его в карточке отклика.
+  return matches.map((m) => ({
+    ...m,
+    profiles: byTelegramId.get(m[idField])
+      ? { ...byTelegramId.get(m[idField]), ...(ratings.get(m[idField]) || EMPTY_RATING) }
+      : null,
+  }));
 }
 
 Deno.serve(async (req) => {
@@ -90,6 +114,8 @@ Deno.serve(async (req) => {
     if (!supabaseUrl || !supabaseKey) {
       throw new Error("Missing Supabase credentials");
     }
+
+    assertRateLimit(telegramId);
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -131,6 +157,33 @@ Deno.serve(async (req) => {
 
       if (!ownerId || !freelancerId) {
         return jsonResponse({ success: false, error: "Missing required fields" }, 400);
+      }
+
+      if (initiated_by === "freelancer") {
+        const { count, error: countError } = await supabase
+          .from("job_matches")
+          .select("id", { count: "exact", head: true })
+          .eq("freelancer_telegram_id", freelancerId)
+          .eq("status", "pending");
+
+        if (countError) throw countError;
+        if ((count ?? 0) >= COUNT_LIMITS.freelancerPendingMatches) {
+          throw new LimitError(
+            `Максимум ${COUNT_LIMITS.freelancerPendingMatches} активных откликов. Дождитесь ответа или отмените старые.`
+          );
+        }
+      } else {
+        const { count, error: countError } = await supabase
+          .from("job_matches")
+          .select("id", { count: "exact", head: true })
+          .eq("owner_telegram_id", ownerId)
+          .eq("initiated_by", "owner")
+          .gte("created_at", startOfTodayMoscow());
+
+        if (countError) throw countError;
+        if ((count ?? 0) >= COUNT_LIMITS.ownerOffersPerDay) {
+          throw new LimitError(`Максимум ${COUNT_LIMITS.ownerOffersPerDay} предложений в день`);
+        }
       }
 
       const { data: match, error } = await supabase
@@ -224,6 +277,31 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, matches: withProfiles });
     }
 
+    // LIST: подтверждённые (принятые) временные смены — экран «Мои смены».
+    // Фильтруем по telegramId из подписи, поэтому чужие смены не отдаём даже
+    // если подставить другую роль.
+    if (action === "list-shifts") {
+      const asOwner = data.role === "owner";
+      const selfField = asOwner ? "owner_telegram_id" : "freelancer_telegram_id";
+      const otherField = asOwner ? "freelancer_telegram_id" : "owner_telegram_id";
+
+      const { data: matches, error } = await supabase
+        .from("job_matches")
+        .select(
+          `id, vacancy_id, status, confirmed_at, created_at,
+           owner_telegram_id, freelancer_telegram_id,
+           owner_vacancies!inner ( ${VACANCY_FIELDS}, marketplaces, type )`
+        )
+        .eq(selfField, telegramId)
+        .eq("status", "accepted")
+        .eq("owner_vacancies.type", "temporary");
+
+      if (error) throw error;
+
+      const withProfiles = await attachProfiles(supabase, matches || [], otherField);
+      return jsonResponse({ success: true, matches: withProfiles });
+    }
+
     // ACCEPT: respond to a match
     if (action === "accept") {
       const { id } = data;
@@ -268,6 +346,13 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ success: false, error: "Unknown action" }, 400);
   } catch (err) {
+    // Лимиты — ожидаемый ответ пользователю, а не сбой сервера.
+    if (err instanceof LimitError) {
+      return jsonResponse({ success: false, error: err.message }, 409);
+    }
+    if (err instanceof RateLimitError) {
+      return jsonResponse({ success: false, error: err.message }, 429);
+    }
     console.error("Error:", err);
     return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }

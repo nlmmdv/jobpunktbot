@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
+import { callFunction, errorText } from '../../lib/api';
 import { CreateResumeScreen } from './CreateResumeScreen';
 import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState } from '../../components/ui';
 import { ResumeGate } from '../../components/ResumeGate';
+import { RatingBadge } from '../../components/RatingBadge';
 import { ComplaintModal } from '../../components/ComplaintModal';
 
 interface Resume {
@@ -21,6 +22,8 @@ interface Vacancy {
   schedule?: string;
   /** Владелец вакансии. В таблице owner_vacancies это telegram_id (не owner_telegram_id). */
   telegram_id?: number;
+  owner_avg_rating: number | null;
+  owner_rating_count: number;
 }
 
 export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
@@ -29,9 +32,7 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateResume, setShowCreateResume] = useState(false);
-  const [complaintModalOpen, setComplaintModalOpen] = useState(false);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
-  const [selectedCompanyName, setSelectedCompanyName] = useState<string>('');
+  const [complaintTarget, setComplaintTarget] = useState<{ telegramId: string; name: string } | null>(null);
 
   useEffect(() => {
     if (profile?.telegram_id) {
@@ -44,75 +45,23 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
-      // DEV MODE: Show mock vacancies directly
-      if (import.meta.env.DEV) {
-        setResume({ id: 'dev-resume', status: 'active' });
-        setVacancies([
-          {
-            id: 'vacancy-1',
-            address: 'ул. Тверская, 5',
-            type: 'permanent',
-            marketplaces: ['WB', 'Ozon'],
-            payment: 40000,
-            metro_stations: ['Охотный ряд'],
-            telegram_id: 111222333,
-          },
-          {
-            id: 'vacancy-2',
-            address: 'Невский пр., 100',
-            type: 'permanent',
-            marketplaces: ['Яндекс Маркет'],
-            payment: 35000,
-            metro_stations: ['Невский пр-т'],
-            telegram_id: 444555666,
-          },
-        ]);
-        setLoading(false);
-        return;
-      }
-
       const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
         action: 'get',
         telegramId: profile.telegram_id,
       });
       if (data.resume) {
         setResume(data.resume);
-        await loadVacancies();
+        loadVacancies();
       }
-      setLoading(false);
     } catch (err) {
       console.error('Failed to load resume:', err);
+    } finally {
       setLoading(false);
     }
   };
 
   const loadVacancies = async () => {
     try {
-      // DEV MODE: Return mock vacancies
-      if (import.meta.env.DEV) {
-        setVacancies([
-          {
-            id: 'vacancy-1',
-            address: 'ул. Тверская, 5',
-            type: 'permanent',
-            marketplaces: ['WB', 'Ozon'],
-            payment: 40000,
-            metro_stations: ['Охотный ряд'],
-            telegram_id: 111222333,
-          },
-          {
-            id: 'vacancy-2',
-            address: 'Невский пр., 100',
-            type: 'permanent',
-            marketplaces: ['Яндекс Маркет'],
-            payment: 35000,
-            metro_stations: ['Невский пр-т'],
-            telegram_id: 444555666,
-          },
-        ]);
-        return;
-      }
-
       const data = await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
         type: 'permanent',
         city: profile?.city || 'Все',
@@ -140,14 +89,7 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       loadVacancies();
     } catch (err) {
       console.error('Failed to apply:', err);
-      const errorMsg = err instanceof Error ? err.message : 'неизвестная ошибка';
-      if (errorMsg.includes('Уже существует')) {
-        alert('❌ Вы уже откликнулись на эту вакансию');
-      } else if (errorMsg.includes('initData')) {
-        alert('❌ Сеанс истёк. Пожалуйста, перезагрузите приложение');
-      } else {
-        alert(`❌ Ошибка при отправке отклика: ${errorMsg}`);
-      }
+      alert(`❌ ${errorText(err, 'Ошибка при отправке отклика')}`);
     }
   };
 
@@ -178,7 +120,6 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       <ResumeGate
         description="Создайте резюме чтобы просматривать вакансии и откликаться"
         onCreate={() => setShowCreateResume(true)}
-        onBack={onBack}
       />
     );
   }
@@ -192,9 +133,12 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       ) : (
         vacancies.map((vacancy) => (
           <Card key={vacancy.id} variant="freelancer">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{vacancy.address}</div>
               <Badge tone="perm-f">📌 Постоянная</Badge>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <RatingBadge avgRating={vacancy.owner_avg_rating} count={vacancy.owner_rating_count} />
             </div>
 
             {vacancy.marketplaces?.length > 0 && <div className="meta">📦 {vacancy.marketplaces.join(', ')}</div>}
@@ -209,23 +153,25 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
               </Button>
               <button
                 onClick={() => {
-                  // Используем telegram_id как ID компании для жалоб
-                  setSelectedCompanyId(String(vacancy.telegram_id || ''));
-                  setSelectedCompanyName('ПВЗ ' + vacancy.address);
-                  setComplaintModalOpen(true);
+                  // Жалоба уходит на компанию, а не на вакансию: клиент знает
+                  // только telegram_id владельца, сервер сам резолвит его в
+                  // owner_profiles.id.
+                  setComplaintTarget({
+                    telegramId: String(vacancy.telegram_id || ''),
+                    name: 'ПВЗ ' + vacancy.address,
+                  });
                 }}
+                title="Пожаловаться на компанию"
                 style={{
                   padding: '8px 12px',
                   borderRadius: 8,
-                  border: '1px solid #E5E7EB',
+                  border: '1px solid var(--border)',
                   background: 'white',
                   color: '#6366F1',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
                 }}
-                title="Пожаловаться на компанию"
               >
                 🚩
               </button>
@@ -235,11 +181,11 @@ export const VacanciesScreen = ({ onBack }: { onBack: () => void }) => {
       )}
 
       <ComplaintModal
-        isOpen={complaintModalOpen}
-        onClose={() => setComplaintModalOpen(false)}
+        isOpen={complaintTarget !== null}
+        onClose={() => setComplaintTarget(null)}
         complaintType="company"
-        targetId={selectedCompanyId}
-        targetName={selectedCompanyName}
+        targetId={complaintTarget?.telegramId || ''}
+        targetName={complaintTarget?.name || ''}
       />
     </Screen>
   );

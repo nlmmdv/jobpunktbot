@@ -4,7 +4,6 @@ import { callFunction } from '../../lib/api';
 
 interface Vacancy {
   id: string;
-  title?: string;
   address?: string;
   description?: string;
   payment?: number;
@@ -167,13 +166,8 @@ export const VacancyManagementScreen = ({ onBack }: { onBack: () => void }) => {
             }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {vacancy.title || 'Без названия'}
+              {vacancy.address || 'Без адреса'}
             </div>
-            {vacancy.address && (
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                📍 {vacancy.address}
-              </div>
-            )}
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
               👤 {vacancy.first_name || 'Неизвестно'} (ID: {vacancy.telegram_id}) •{' '}
               {formatDate(vacancy.created_at)}

@@ -44,21 +44,40 @@ export async function verifyTelegramInitData(
   }
   params.delete("hash");
 
-  const dataCheckString = Array.from(params.entries())
-    .map(([key, value]) => `${key}=${value}`)
-    .sort()
-    .join("\n");
+  const buildCheckString = (entries: Array<[string, string]>) =>
+    entries
+      .map(([key, value]) => `${key}=${value}`)
+      .sort()
+      .join("\n");
+
+  const all = Array.from(params.entries());
+  // Bot API 7.10+ добавил поле signature (Ed25519-подпись для сторонней
+  // проверки). В документации не сказано однозначно, входит ли оно в строку,
+  // по которой Telegram считает свой hash, а ошибка здесь выглядит как «неверная
+  // подпись» и отлаживается тяжело. Поэтому принимаем оба варианта: подделать
+  // любой из них всё равно нельзя без токена бота.
+  const candidates = [buildCheckString(all)];
+  if (params.has("signature")) {
+    candidates.push(buildCheckString(all.filter(([key]) => key !== "signature")));
+  }
 
   const secretKey = await hmacSha256(new TextEncoder().encode("WebAppData"), botToken);
-  const computedHash = toHex(await hmacSha256(secretKey, dataCheckString));
+  let matched = false;
+  for (const candidate of candidates) {
+    if (toHex(await hmacSha256(secretKey, candidate)) === hash) {
+      matched = true;
+      break;
+    }
+  }
 
-  if (computedHash !== hash) {
+  if (!matched) {
     throw new Error("initData: неверная подпись");
   }
 
   const authDate = Number(params.get("auth_date") || "0");
   if (!authDate || Date.now() / 1000 - authDate > maxAgeSeconds) {
-    throw new Error("initData: срок действия истёк");
+    // Обновить initData можно только переоткрыв мини-апп — так и пишем.
+    throw new Error("Сессия устарела. Закройте и откройте приложение заново.");
   }
 
   const userRaw = params.get("user");
@@ -109,6 +128,8 @@ export async function requireTelegramId(body: { initData?: string }): Promise<nu
   } catch (err) {
     console.error("Signature verification failed:", err);
     console.error("initData params:", new URLSearchParams(initData).toString().substring(0, 100));
-    throw new Error("initData: неверная подпись");
+    // Причину НЕ подменяем: истёкший auth_date раньше показывался как «неверная
+    // подпись», и было непонятно, что достаточно переоткрыть приложение.
+    throw err instanceof Error ? err : new Error("initData: неверная подпись");
   }
 }

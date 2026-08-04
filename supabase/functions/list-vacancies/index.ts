@@ -1,43 +1,42 @@
-import { handlePublicEdgeFunction } from "../_shared/edge-function-utils.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { ratingsFor, EMPTY_RATING } from "../_shared/ratings.ts";
 
-Deno.serve((req) =>
-  handlePublicEdgeFunction(req, async (supabase, body) => {
-    const { type, city, marketplaces, limit = 20, offset = 0 } = body;
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const { type, city, marketplaces, limit = 20, offset = 0 } = await req.json();
 
     if (!type || !["temporary", "permanent"].includes(type)) {
-      throw new Error("Invalid type");
+      return jsonResponse({ success: false, error: "Invalid type" }, 400);
     }
 
-    // Получить заблокированные компании
-    const now = new Date().toISOString();
-    const { data: blockedCompanies } = await supabase
-      .from('company_blocks')
-      .select('blocked_company_id')
-      .eq('status', 'active')
-      .or(`unblock_at.is.null,unblock_at.gt.${now}`);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    const blockedCompanyIds = blockedCompanies?.map(b => b.blocked_company_id) || [];
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase credentials");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     let query = supabase
       .from("owner_vacancies")
       .select("*")
       .eq("type", type)
-      .eq("status", "active");
-
-    // Исключить вакансии заблокированных компаний
-    if (blockedCompanyIds.length > 0) {
-      query = query.not('owner_id', 'in', `(${blockedCompanyIds.join(',')})`);
-    }
-
-    query = query
-      .range(offset as number, (offset as number) + (limit as number) - 1)
+      .eq("status", "active")
+      .range(offset, offset + limit - 1)
       .order("created_at", { ascending: false });
 
     if (city && city !== "Все") {
       query = query.eq("city", city);
     }
 
-    if (marketplaces && (marketplaces as string[]).length > 0) {
+    if (marketplaces && marketplaces.length > 0) {
+      // Filter vacancies that have at least one of the selected marketplaces
       query = query.contains("marketplaces", marketplaces);
     }
 
@@ -45,6 +44,18 @@ Deno.serve((req) =>
 
     if (error) throw error;
 
-    return { vacancies: vacancies || [] };
-  })
-);
+    // Рейтинг владельца вакансии (owner_vacancies.telegram_id) — под ключами
+    // owner_avg_rating / owner_rating_count, чтобы не путать с рейтингом смены.
+    const rows = vacancies || [];
+    const ratings = await ratingsFor(supabase, rows.map((v: { telegram_id?: number }) => v.telegram_id));
+    const withRatings = rows.map((v: { telegram_id?: number }) => {
+      const r = ratings.get(v.telegram_id as number) || EMPTY_RATING;
+      return { ...v, owner_avg_rating: r.avg_rating, owner_rating_count: r.rating_count };
+    });
+
+    return jsonResponse({ success: true, vacancies: withRatings });
+  } catch (err) {
+    console.error("Error:", err);
+    return jsonResponse({ success: false, error: (err as Error).message }, 500);
+  }
+});

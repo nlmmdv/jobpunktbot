@@ -19,6 +19,15 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Текст ошибки для показа пользователю. Сообщение сервера важнее общего текста:
+ * лимиты («Максимум 10 активных откликов…») приходят именно оттуда, и заменять
+ * их на «Ошибка» — значит скрыть от пользователя причину.
+ */
+export function errorText(err: unknown, fallback: string): string {
+  return err instanceof ApiError && err.message ? err.message : fallback;
+}
+
 interface CallOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   retries?: number;

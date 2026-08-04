@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
-import { Screen, ScreenHeader, Card, Button, Badge, Loading, EmptyState, type BadgeTone } from '../../components/ui';
+import { callFunction, errorText } from '../../lib/api';
+import { Screen, ScreenHeader, Card, Button, Badge, Segmented, Loading, EmptyState, type BadgeTone } from '../../components/ui';
+import { RatingBadge } from '../../components/RatingBadge';
 
 interface Match {
   id: string;
@@ -23,6 +24,8 @@ interface Match {
     first_name: string;
     last_name?: string;
     telegram_username?: string;
+    avg_rating?: number | null;
+    rating_count?: number;
   };
 }
 
@@ -96,7 +99,7 @@ export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
       loadMatches();
     } catch (err) {
       console.error('Failed to accept:', err);
-      alert('❌ Ошибка при принятии предложения');
+      alert(`❌ ${errorText(err, 'Ошибка при принятии предложения')}`);
     }
   };
 
@@ -106,7 +109,7 @@ export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
       loadMatches();
     } catch (err) {
       console.error('Failed to reject:', err);
-      alert('❌ Ошибка при отклонении');
+      alert(`❌ ${errorText(err, 'Ошибка при отклонении')}`);
     }
   };
 
@@ -127,14 +130,14 @@ export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
     <Screen>
       <ScreenHeader title="📬 Мои отклики" variant="freelancer" onBack={onBack} />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Button tone={tab === 'sent' ? 'primary' : 'secondary'} small onClick={() => setTab('sent')}>
-          Мои отклики
-        </Button>
-        <Button tone={tab === 'offers' ? 'primary' : 'secondary'} small onClick={() => setTab('offers')}>
-          Предложения мне
-        </Button>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'sent', label: 'Мои отклики' },
+          { value: 'offers', label: 'Предложения мне' },
+        ]}
+      />
 
       {displayMatches.length === 0 && (
         <EmptyState>{tab === 'sent' ? '📝 Нет откликов' : '📬 Нет предложений'}</EmptyState>
@@ -148,8 +151,11 @@ export const FreelancerMatchesScreen = ({ onBack }: { onBack: () => void }) => {
           <Card key={match.id} variant="freelancer">
             {status && <Badge tone={status.tone}>{status.text}</Badge>}
 
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-              📍 {match.owner_vacancies?.address}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                📍 {match.owner_vacancies?.address}
+              </div>
+              <RatingBadge avgRating={match.profiles?.avg_rating ?? null} count={match.profiles?.rating_count ?? 0} />
             </div>
 
             {match.owner_vacancies?.date && (

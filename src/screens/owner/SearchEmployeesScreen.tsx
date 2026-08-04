@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { callFunction, ApiError } from '../../lib/api';
-import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
+import { callFunction, ApiError, errorText } from '../../lib/api';
+import { Screen, ScreenHeader, Card, Button, Label, Chip, SelectField, TextField, Segmented, Loading, EmptyState, ErrorText, Modal } from '../../components/ui';
 import { MetroSelector, SelectedMetroChips, metroListForCity } from '../../components/MetroSelector';
+import { RatingBadge } from '../../components/RatingBadge';
+import { formatShiftWhen } from '../../lib/cancellation';
+import { todayMoscow } from '../../lib/utils';
 
 interface Freelancer {
   id: string;
@@ -13,7 +16,17 @@ interface Freelancer {
   hourly_rate: number;
   metro_stations: string[];
   preferred_schedule?: string;
+  avg_rating: number | null;
+  rating_count: number;
+  /** Только у «замен»: конкретная дата и время, когда человек готов выйти. */
+  shift_id?: string;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
 }
+
+/** Постоянные — это резюме, замены — заявки на конкретные даты. */
+type SearchTab = 'permanent' | 'temporary';
 
 interface Vacancy {
   id: string;
@@ -24,33 +37,10 @@ interface Vacancy {
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
 const CITIES = ['Москва', 'Санкт-Петербург', 'Все'];
 
-// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
-const MOCK_FREELANCERS: Freelancer[] = [
-  {
-    id: 'dev-fl-1',
-    first_name: 'Иван',
-    last_name: 'Петров',
-    city: 'Москва',
-    about: 'Опытный сотрудник ПВЗ, работаю быстро и аккуратно.',
-    marketplaces: ['WB', 'Ozon'],
-    hourly_rate: 500,
-    metro_stations: ['Охотный ряд'],
-    preferred_schedule: '5/2',
-  },
-  {
-    id: 'dev-fl-2',
-    first_name: 'Мария',
-    last_name: 'Сидорова',
-    city: 'Москва',
-    about: 'Ответственная, есть опыт работы с выдачей заказов.',
-    marketplaces: ['Яндекс Маркет'],
-    hourly_rate: 450,
-    metro_stations: ['Тверская'],
-    preferred_schedule: '2/2',
-  },
-];
-
 export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
+  const [tab, setTab] = useState<SearchTab>('permanent');
+  // Замены ищем начиная с даты; по умолчанию — сегодня.
+  const [fromDate, setFromDate] = useState(todayMoscow());
   const [selectedCity, setSelectedCity] = useState('Москва');
   const [selectedMarketplaces, setSelectedMarketplaces] = useState<Set<string>>(new Set());
   const [selectedMetro, setSelectedMetro] = useState<Set<string>>(new Set());
@@ -65,18 +55,18 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
   useEffect(() => {
     loadFreelancers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCity, selectedMarketplaces, selectedMetro]);
+  }, [tab, fromDate, selectedCity, selectedMarketplaces, selectedMetro]);
 
   const loadFreelancers = async () => {
     setLoading(true);
     setError('');
     try {
-      const data = import.meta.env.DEV
-        ? { freelancers: MOCK_FREELANCERS }
-        : await callFunction<{ freelancers: Freelancer[] }>('search-freelancers', {
-            city: selectedCity === 'Все' ? 'Все' : selectedCity,
-            marketplace: selectedMarketplaces.size > 0 ? Array.from(selectedMarketplaces)[0] : 'Все',
-          });
+      const data = await callFunction<{ freelancers: Freelancer[] }>('search-freelancers', {
+        type: tab,
+        fromDate: tab === 'temporary' ? fromDate : undefined,
+        city: selectedCity === 'Все' ? 'Все' : selectedCity,
+        marketplace: selectedMarketplaces.size > 0 ? Array.from(selectedMarketplaces)[0] : 'Все',
+      });
 
       // Бэкенд не фильтрует по метро — делаем это на клиенте.
       // metro_stations на сервере хранятся как названия станций, а selectedMetro — id.
@@ -121,7 +111,7 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
       setShowOfferModal(true);
     } catch (err) {
       console.error('Failed to load vacancies:', err);
-      alert('❌ Ошибка при загрузке вакансий');
+      alert(`❌ ${errorText(err, 'Ошибка при загрузке вакансий')}`);
     }
   };
 
@@ -140,7 +130,7 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
       alert('✅ Предложение отправлено!');
     } catch (err) {
       console.error('Failed to send offer:', err);
-      alert('❌ Ошибка при отправке предложения');
+      alert(`❌ ${errorText(err, 'Ошибка при отправке предложения')}`);
     }
   };
 
@@ -148,7 +138,27 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
     <Screen>
       <ScreenHeader title="Поиск сотрудников" variant="owner" onBack={onBack} />
 
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'permanent', label: 'Постоянные' },
+          { value: 'temporary', label: 'Замены' },
+        ]}
+      />
+
       <div style={{ marginBottom: 20 }}>
+        {tab === 'temporary' && (
+          <TextField
+            variant="owner"
+            label="Дата начиная с"
+            type="date"
+            value={fromDate}
+            min={todayMoscow()}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        )}
+
         <SelectField variant="owner" label="Город" value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}>
           {CITIES.map((city) => (
             <option key={city} value={city}>
@@ -192,17 +202,32 @@ export const SearchEmployeesScreen = ({ onBack }: { onBack: () => void }) => {
 
       {error && <ErrorText>{error}</ErrorText>}
       {loading && <Loading />}
-      {!loading && freelancers.length === 0 && <EmptyState>Фрилансеров не найдено</EmptyState>}
+      {!loading && freelancers.length === 0 && (
+        <EmptyState>
+          {tab === 'permanent'
+            ? 'Резюме не найдено'
+            : 'Нет заявок на замены — сотрудники ещё не отметили свободные даты'}
+        </EmptyState>
+      )}
 
       {!loading &&
         freelancers.map((freelancer) => (
-          <Card key={freelancer.id} variant="owner">
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 8 }}>
-              {freelancer.first_name} {freelancer.last_name}
+          <Card key={freelancer.shift_id || freelancer.id} variant="owner">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                {freelancer.first_name} {freelancer.last_name}
+              </div>
+              <RatingBadge avgRating={freelancer.avg_rating} count={freelancer.rating_count} />
             </div>
             {freelancer.city && <div className="meta">📍 {freelancer.city}</div>}
             {freelancer.marketplaces?.length > 0 && <div className="meta">📦 {freelancer.marketplaces.join(', ')}</div>}
-            {freelancer.preferred_schedule && <div className="meta">📅 {freelancer.preferred_schedule}</div>}
+            {tab === 'temporary' ? (
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-owner)', marginBottom: 4 }}>
+                📅 {formatShiftWhen(freelancer.date, freelancer.start_time, freelancer.end_time)}
+              </div>
+            ) : (
+              freelancer.preferred_schedule && <div className="meta">📅 {freelancer.preferred_schedule}</div>
+            )}
             {freelancer.hourly_rate && <div className="price owner">💰 от {freelancer.hourly_rate} ₽/час</div>}
             {freelancer.metro_stations?.length > 0 && <div className="meta">🚇 {freelancer.metro_stations.join(', ')}</div>}
             {freelancer.about && (

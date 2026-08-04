@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
-import { botMessages, openAppButton, type RaterRole, type VacancyInfo } from "../_shared/bot-messages.ts";
+import { botMessages, openAppButton, mainMenu, esc, type RaterRole, type VacancyInfo } from "../_shared/bot-messages.ts";
+import { clampText, TEXT_LIMITS } from "../_shared/limits.ts";
+
+const ADMIN_CHAT_ID = -5402800630n;
 
 // Вебхук Telegram: сюда прилетают апдейты от бота — /start, нажатия кнопок
 // (callback_query) и текстовые ответы.
@@ -42,6 +45,15 @@ async function sendMessage(telegramId: number, message: string, replyMarkup?: un
   if (!response.ok) {
     throw new Error(`send-telegram-message failed: ${await response.text()}`);
   }
+}
+
+async function sendAdminMessage(text: string): Promise<void> {
+  if (!BOT_TOKEN) return;
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: Number(ADMIN_CHAT_ID), text, parse_mode: "HTML" }),
+  });
 }
 
 interface Match {
@@ -193,7 +205,7 @@ async function handlePendingComment(supabase: Db, actorId: number, text: string)
       fromId: actorId,
       toId,
       rating: pending.rating,
-      comment: text,
+      comment: clampText(text, TEXT_LIMITS.comment) as string,
     });
   }
 
@@ -210,11 +222,70 @@ async function handleStart(supabase: Db, actorId: number, chatId: number) {
     .maybeSingle();
 
   // Зарегистрированного встречаем по имени, новому объясняем, что это за бот.
+  const message = profile?.first_name ? botMessages.startReturning(profile.first_name) : botMessages.start();
+
+  // Отправляем сообщение с persistent menu
+  await sendMessage(chatId, message, mainMenu());
+}
+
+async function handleFeedbackStart(supabase: Db, actorId: number, chatId: number) {
+  // Сохраняем состояние, что ждём обратную связь
+  await supabase.from("bot_states").upsert(
+    {
+      telegram_id: actorId,
+      state: "waiting_feedback",
+      data: { initiated_at: new Date().toISOString() },
+    },
+    { onConflict: "telegram_id" }
+  );
+
   await sendMessage(
     chatId,
-    profile?.first_name ? botMessages.startReturning(profile.first_name) : botMessages.start(),
-    openAppButton()
+    "Напишите ваш отзыв или вопрос. Мы обязательно прочитаем. 📝"
   );
+}
+
+async function handleFeedback(supabase: Db, actorId: number, chatId: number, text: string): Promise<boolean> {
+  const { data: state } = await supabase
+    .from("bot_states")
+    .select("state")
+    .eq("telegram_id", actorId)
+    .maybeSingle();
+
+  if (!state || state.state !== "waiting_feedback") {
+    return false;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("first_name, last_name, role, telegram_username")
+    .eq("telegram_id", actorId)
+    .maybeSingle();
+
+  const userName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "Пользователь";
+  const userHandle = profile?.telegram_username ? `@${profile.telegram_username}` : `ID: ${actorId}`;
+  const roleText = profile?.role === "owner" ? "Владелец" : "Фрилансер";
+
+  const adminMessage = [
+    "💬 <b>Обратная связь</b>",
+    `От: ${esc(userName)} (${userHandle})`,
+    `Роль: ${roleText}`,
+    `ID: ${actorId}`,
+    "",
+    `Текст: ${esc(clampText(text, TEXT_LIMITS.comment) as string)}`,
+  ].join("\n");
+
+  await sendAdminMessage(adminMessage);
+
+  // Удаляем состояние ожидания
+  await supabase.from("bot_states").delete().eq("telegram_id", actorId);
+
+  await sendMessage(chatId, "Спасибо! Мы получили ваше сообщение. 📬");
+  return true;
+}
+
+async function handleAboutButton(chatId: number) {
+  await sendMessage(chatId, botMessages.about(), mainMenu());
 }
 
 /* ── Точка входа ────────────────────────────────────────────────────────── */
@@ -282,12 +353,28 @@ Deno.serve(async (req) => {
 
     if (!chatId || !actorId || !text) return ok();
 
-    // Явная команда важнее незакрытого комментария.
+    // Явная команда и кнопки важнее незакрытого комментария и обратной связи.
     if (text.startsWith("/start")) {
       await handleStart(supabase, actorId, chatId);
       return ok();
     }
 
+    if (text.startsWith("/feedback") || text === "💬 Обратная связь") {
+      await handleFeedbackStart(supabase, actorId, chatId);
+      return ok();
+    }
+
+    if (text === "ℹ️ О сервисе") {
+      await handleAboutButton(chatId);
+      return ok();
+    }
+
+    // Если ждём обратную связь, обрабатываем текст как отзыв
+    if (await handleFeedback(supabase, actorId, chatId, text)) {
+      return ok();
+    }
+
+    // Иначе это комментарий после низкой оценки
     await handlePendingComment(supabase, actorId, text);
   } catch (error) {
     console.error("Error handling Telegram update:", error);

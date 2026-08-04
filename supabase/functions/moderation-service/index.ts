@@ -307,16 +307,18 @@ Deno.serve((req) =>
     }
 
     if (action === "vacancies_for_review") {
+      // Прод-таблица — owner_vacancies, владелец в ней telegram_id, колонки
+      // title нет, статусы 'active' | 'deleted' (см. owner-vacancies/index.ts).
       const { data: vacancies, error } = await supabase
-        .from("vacancies")
-        .select("id, title, address, description, owner_telegram_id, status, payment, created_at")
-        .eq("status", "open")
+        .from("owner_vacancies")
+        .select("id, address, description, telegram_id, status, payment, created_at")
+        .eq("status", "active")
         .order("created_at", { ascending: false })
         .range(...range);
 
       if (error) throw new Error(`Не удалось загрузить вакансии: ${error.message}`);
 
-      const ownerIds = [...new Set((vacancies || []).map((v: any) => v.owner_telegram_id))];
+      const ownerIds = [...new Set((vacancies || []).map((v: any) => v.telegram_id))];
       const owners = new Map<number, string>();
       if (ownerIds.length > 0) {
         const { data: profiles } = await supabase
@@ -329,12 +331,11 @@ Deno.serve((req) =>
       return {
         vacancies: (vacancies || []).map((v: any) => ({
           id: v.id,
-          title: v.title,
           address: v.address,
           description: v.description,
           payment: v.payment,
-          telegram_id: v.owner_telegram_id,
-          first_name: owners.get(v.owner_telegram_id) || null,
+          telegram_id: v.telegram_id,
+          first_name: owners.get(v.telegram_id) || null,
           created_at: v.created_at,
           has_spam: checkForSpam(v.description),
         })),
@@ -347,10 +348,9 @@ Deno.serve((req) =>
     if (action === "delete_vacancy") {
       if (!vacancyId) throw new Error("Не указан vacancyId");
 
-      // 'closed' — единственный допустимый «снятый» статус в CHECK общей схемы.
       const { error } = await supabase
-        .from("vacancies")
-        .update({ status: "closed" })
+        .from("owner_vacancies")
+        .update({ status: "deleted" })
         .eq("id", vacancyId);
 
       if (error) throw new Error(`Не удалось снять вакансию: ${error.message}`);
@@ -361,7 +361,7 @@ Deno.serve((req) =>
 
     if (action === "approve_vacancy") {
       if (!vacancyId) throw new Error("Не указан vacancyId");
-      // Одобрение не меняет статус (вакансия уже 'open') — фиксируем в журнале,
+      // Одобрение не меняет статус (вакансия уже 'active') — фиксируем в журнале,
       // чтобы модератор видел, что заявка проверена.
       await logAction(supabase, moderator, "approve_vacancy", null, vacancyId, {});
       return { success: true, message: "Вакансия одобрена" };
@@ -398,9 +398,9 @@ Deno.serve((req) =>
       const [newUsers, newVacancies, matches, spamSource, openComplaints, companyComplaints, blocks] =
         await Promise.all([
           supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", today),
-          supabase.from("vacancies").select("*", { count: "exact", head: true }).gte("created_at", today),
+          supabase.from("owner_vacancies").select("*", { count: "exact", head: true }).gte("created_at", today),
           supabase.from("job_matches").select("*", { count: "exact", head: true }).gte("created_at", weekAgo),
-          supabase.from("vacancies").select("description").eq("status", "open"),
+          supabase.from("owner_vacancies").select("description").eq("status", "active"),
           supabase.from("complaints").select("*", { count: "exact", head: true }).eq("status", "open"),
           supabase.from("company_complaints").select("*", { count: "exact", head: true }).eq("status", "open"),
           supabase

@@ -107,51 +107,14 @@ export const throttle = <T extends (...args: any[]) => any>(
 };
 
 /**
- * Форматирование суммы денег
- * Примеры: 1000 → "1 000 ₽", 15000 → "15 000 ₽"
+ * Сегодняшняя дата в поясе смен (Москва) в формате YYYY-MM-DD — он же формат
+ * <input type="date"> и колонки date. Через локальное время считать нельзя:
+ * у пользователя в другом поясе день разъедется с тем, что на сервере.
  */
-export const formatMoney = (amount: number, currency = '₽'): string => {
-  return amount.toLocaleString('ru-RU') + ' ' + currency;
-};
-
-/**
- * Форматирование рейтинга
- * Примеры: 4.5 → "4.5 ⭐", 5 → "5.0 ⭐"
- */
-export const formatRating = (rating: number): string => {
-  return rating.toFixed(1) + ' ⭐';
-};
-
-/**
- * Получить цвет для рейтинга
- * 4.5+ → зеленый, 3.5-4.5 → желтый, < 3.5 → красный
- */
-export const getRatingColor = (rating: number): string => {
-  if (rating >= 4.5) return '#10b981';
-  if (rating >= 3.5) return '#f59e0b';
-  return '#ef4444';
-};
-
-/**
- * Проверить что текущее время близко к заданному времени
- */
-export const isTimeNear = (targetTime: string, minutesBefore = 120): boolean => {
-  const [hours, minutes] = targetTime.split(':').map(Number);
-  const targetDate = new Date();
-  targetDate.setHours(hours, minutes, 0, 0);
-
-  const now = new Date();
-  const diffMs = targetDate.getTime() - now.getTime();
-  const diffMinutes = diffMs / (1000 * 60);
-
-  return diffMinutes > 0 && diffMinutes <= minutesBefore;
-};
-
-/**
- * Сокращение длинного текста
- * Примеры: "Долгое название компании ОООХО" → "Долгое название..."
- */
-export const truncateText = (text: string, maxLength = 20): string => {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength - 3) + '...';
-};
+export const todayMoscow = (): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());

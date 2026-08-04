@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { callFunction } from '../../lib/api';
+import { callFunction, errorText } from '../../lib/api';
 import { CreateResumeScreen } from './CreateResumeScreen';
 import { Screen, ScreenHeader, Card, Button, Label, Chip, Badge, Loading, EmptyState, Modal } from '../../components/ui';
 import { ResumeGate } from '../../components/ResumeGate';
 import { MetroSelector, SelectedMetroChips, metroStationName } from '../../components/MetroSelector';
+import { RatingBadge } from '../../components/RatingBadge';
 
 interface Vacancy {
   id: string;
@@ -18,6 +19,8 @@ interface Vacancy {
   metro_stations: string[];
   /** Владелец вакансии. В таблице owner_vacancies это telegram_id (не owner_telegram_id). */
   telegram_id?: number;
+  owner_avg_rating: number | null;
+  owner_rating_count: number;
 }
 
 interface Resume {
@@ -26,34 +29,6 @@ interface Resume {
 }
 
 const MARKETPLACES = ['WB', 'Ozon', 'Яндекс Маркет'];
-
-// Данные-заглушки для локальной разработки (DEV), когда Edge Functions недоступны.
-const MOCK_TEMPORARY_VACANCIES: Vacancy[] = [
-  {
-    id: 'dev-temp-1',
-    address: 'ул. Тверская, 5',
-    type: 'temporary',
-    date: new Date().toISOString().split('T')[0],
-    start_time: '09:00',
-    end_time: '18:00',
-    marketplaces: ['WB', 'Ozon'],
-    payment: 2500,
-    metro_stations: ['Охотный ряд'],
-    telegram_id: 111222333,
-  },
-  {
-    id: 'dev-temp-2',
-    address: 'Невский пр., 100',
-    type: 'temporary',
-    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-    start_time: '10:00',
-    end_time: '20:00',
-    marketplaces: ['Яндекс Маркет'],
-    payment: 3000,
-    metro_stations: ['Невский пр-т'],
-    telegram_id: 444555666,
-  },
-];
 
 const ScrollPicker = ({ items, value, onChange }: { items: string[]; value: string; onChange: (val: string) => void }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -162,23 +137,15 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
     if (resume) {
       loadVacancies();
     }
-    // resume в зависимостях: первая загрузка вакансий должна произойти сразу,
-    // как только резюме получено. selectedMetro тоже используется внутри
-    // loadVacancies для фильтрации — без него выбор станции не перезапускал загрузку.
+    // selectedMetro тоже используется внутри loadVacancies для фильтрации —
+    // без него в зависимостях выбор станции метро не перезапускал загрузку.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resume, selectedMarketplaces, selectedMetro, minDate, minTime, maxTime]);
+  }, [selectedMarketplaces, selectedMetro, minDate, minTime, maxTime]);
 
   const loadResume = async () => {
     if (!profile?.telegram_id) return;
     setLoading(true);
     try {
-      // DEV MODE: активное резюме-заглушка, чтобы пропустить ResumeGate.
-      if (import.meta.env.DEV) {
-        setResume({ id: 'dev-resume', status: 'active' });
-        setLoading(false);
-        return;
-      }
-
       const data = await callFunction<{ resume: Resume | null }>('freelancer-resumes', {
         action: 'get',
         telegramId: profile.telegram_id,
@@ -193,13 +160,10 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
 
   const loadVacancies = async () => {
     try {
-      // DEV MODE: срочные вакансии-заглушки.
-      const data = import.meta.env.DEV
-        ? { vacancies: MOCK_TEMPORARY_VACANCIES }
-        : await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
-            type: 'temporary',
-            city: userCity,
-          });
+      const data = await callFunction<{ vacancies: Vacancy[] }>('list-vacancies', {
+        type: 'temporary',
+        city: userCity,
+      });
 
       let filtered = data.vacancies || [];
       if (minDate) filtered = filtered.filter((v) => v.date >= minDate);
@@ -236,14 +200,7 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
       loadVacancies();
     } catch (err) {
       console.error('Failed to apply:', err);
-      const errorMsg = err instanceof Error ? err.message : 'неизвестная ошибка';
-      if (errorMsg.includes('Уже существует')) {
-        alert('❌ Вы уже откликнулись на эту смену');
-      } else if (errorMsg.includes('initData')) {
-        alert('❌ Сеанс истёк. Пожалуйста, перезагрузите приложение');
-      } else {
-        alert(`❌ Ошибка при отправке отклика: ${errorMsg}`);
-      }
+      alert(`❌ ${errorText(err, 'Ошибка при отправке отклика')}`);
     }
   };
 
@@ -287,7 +244,6 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
       <ResumeGate
         description="Создайте резюме чтобы просматривать доступные замены"
         onCreate={() => setShowCreateResume(true)}
-        onBack={onBack}
       />
     );
   }
@@ -341,9 +297,12 @@ export const AvailableShiftsScreen = ({ onBack }: { onBack: () => void }) => {
       ) : (
         vacancies.map((vacancy) => (
           <Card key={vacancy.id} variant="freelancer">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>{vacancy.address}</div>
               <Badge tone="temp-f">⏰ Временная</Badge>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <RatingBadge avgRating={vacancy.owner_avg_rating} count={vacancy.owner_rating_count} />
             </div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-freelancer)', marginBottom: 8 }}>
               📅 {new Date(vacancy.date).toLocaleDateString('ru')}, {vacancy.start_time} — {vacancy.end_time}

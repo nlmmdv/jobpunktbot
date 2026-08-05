@@ -48,10 +48,16 @@ Deno.serve((req) =>
     // Пользователи
     // ------------------------------------------------------------------
     if (action === "list_users") {
+      // role: 'employee' — раздел «Сотрудники», 'all' — все профили.
+      const roleFilter = (body as any).role ?? "employee";
       let query = supabase
         .from("profiles")
         .select("id, telegram_id, first_name, last_name, role, city, status, created_at")
         .order("created_at", { ascending: false });
+
+      if (roleFilter && roleFilter !== "all") {
+        query = query.eq("role", roleFilter);
+      }
 
       if (search) {
         const term = sanitizeSearchTerm(search);
@@ -351,6 +357,85 @@ Deno.serve((req) =>
     }
 
     // ------------------------------------------------------------------
+    // Смены
+    // ------------------------------------------------------------------
+    if (action === "list_shifts") {
+      // Смена — это принятый отклик (job_matches) на вакансию из owner_vacancies.
+      // Внешнего ключа job_matches -> profiles нет, поэтому имена подтягиваем
+      // отдельным запросом, как это делает job-matches.
+      const shiftStatus = (body as any).status;
+
+      let query = supabase
+        .from("job_matches")
+        .select(
+          `id, status, created_at, responded_at, confirmed_at,
+           owner_telegram_id, freelancer_telegram_id,
+           owner_vacancies ( id, address, payment, date, start_time, end_time )`
+        )
+        .order("created_at", { ascending: false })
+        .range(...range);
+
+      if (shiftStatus && shiftStatus !== "all") {
+        query = query.eq("status", shiftStatus);
+      }
+
+      const { data: shifts, error } = await query;
+      if (error) throw new Error(`Не удалось загрузить смены: ${error.message}`);
+
+      const ids = [
+        ...new Set(
+          (shifts || []).flatMap((m: any) => [m.owner_telegram_id, m.freelancer_telegram_id])
+        ),
+      ];
+      const names = new Map<number, any>();
+      if (ids.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("telegram_id, first_name, last_name")
+          .in("telegram_id", ids);
+        for (const p of profiles || []) names.set(p.telegram_id, p);
+      }
+
+      const fullName = (tid: number) => {
+        const p = names.get(tid);
+        return p ? [p.first_name, p.last_name].filter(Boolean).join(" ") : null;
+      };
+
+      return {
+        shifts: (shifts || []).map((m: any) => ({
+          id: m.id,
+          status: m.status,
+          created_at: m.created_at,
+          confirmed_at: m.confirmed_at,
+          owner_telegram_id: m.owner_telegram_id,
+          freelancer_telegram_id: m.freelancer_telegram_id,
+          owner_name: fullName(m.owner_telegram_id),
+          freelancer_name: fullName(m.freelancer_telegram_id),
+          address: m.owner_vacancies?.address ?? null,
+          payment: m.owner_vacancies?.payment ?? null,
+          date: m.owner_vacancies?.date ?? null,
+          start_time: m.owner_vacancies?.start_time ?? null,
+          end_time: m.owner_vacancies?.end_time ?? null,
+        })),
+      };
+    }
+
+    if (action === "cancel_shift") {
+      const { shiftId } = body as any;
+      if (!shiftId) throw new Error("Не указан shiftId");
+
+      const { error } = await supabase
+        .from("job_matches")
+        .update({ status: "cancelled", responded_at: new Date().toISOString() })
+        .eq("id", shiftId);
+
+      if (error) throw new Error(`Не удалось отменить смену: ${error.message}`);
+
+      await logAction(supabase, moderator, "cancel_shift", null, shiftId, { reason });
+      return { success: true, message: "Смена отменена" };
+    }
+
+    // ------------------------------------------------------------------
     // Действия над вакансиями
     // ------------------------------------------------------------------
     if (action === "delete_vacancy") {
@@ -403,8 +488,10 @@ Deno.serve((req) =>
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const now = new Date().toISOString();
 
-      const [newUsers, newVacancies, matches, spamSource, openComplaints, companyComplaints, blocks] =
-        await Promise.all([
+      const [
+        newUsers, newVacancies, matches, spamSource, openComplaints, companyComplaints, blocks,
+        totalEmployees, totalOwners, activeShifts,
+      ] = await Promise.all([
           supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", today),
           supabase.from("owner_vacancies").select("*", { count: "exact", head: true }).gte("created_at", today),
           supabase.from("job_matches").select("*", { count: "exact", head: true }).gte("created_at", weekAgo),
@@ -416,6 +503,9 @@ Deno.serve((req) =>
             .select("*", { count: "exact", head: true })
             .is("lifted_at", null)
             .or(`expires_at.is.null,expires_at.gt.${now}`),
+          supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "employee"),
+          supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "owner"),
+          supabase.from("job_matches").select("*", { count: "exact", head: true }).eq("status", "accepted"),
         ]);
 
       const suspicious = (spamSource.data || []).filter((v: any) => checkForSpam(v.description)).length;
@@ -428,6 +518,9 @@ Deno.serve((req) =>
           suspicious_vacancies: suspicious,
           open_complaints: (openComplaints.count || 0) + (companyComplaints.count || 0),
           active_blocks: blocks.count || 0,
+          total_employees: totalEmployees.count || 0,
+          total_owners: totalOwners.count || 0,
+          active_shifts: activeShifts.count || 0,
         },
       };
     }

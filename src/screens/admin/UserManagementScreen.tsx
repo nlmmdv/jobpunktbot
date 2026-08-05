@@ -56,6 +56,8 @@ const formatDate = (value?: string | null) =>
 
 export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  // По умолчанию раздел показывает сотрудников; владельцы живут в «Компаниях».
+  const [roleFilter, setRoleFilter] = useState<'employee' | 'all'>('employee');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,13 +74,14 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
 
   const selectedUser = users.find((u) => u.id === selectedUserId) || null;
 
-  const loadUsers = useCallback(async (search: string) => {
+  const loadUsers = useCallback(async (search: string, role: 'employee' | 'all') => {
     setLoading(true);
     setError(null);
     try {
       const data = await callFunction<{ users: User[] }>('moderation-service', {
         action: 'list_users',
         search: search.trim() || undefined,
+        role,
         limit: 100,
       });
       setUsers(data.users || []);
@@ -92,9 +95,9 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
 
   // Поиск серверный — ждём паузу в наборе, чтобы не слать запрос на каждый символ.
   useEffect(() => {
-    const timer = setTimeout(() => loadUsers(searchQuery), 350);
+    const timer = setTimeout(() => loadUsers(searchQuery, roleFilter), 350);
     return () => clearTimeout(timer);
-  }, [searchQuery, loadUsers]);
+  }, [searchQuery, roleFilter, loadUsers]);
 
   const openBlockModal = (userId: string) => {
     setSelectedUserId(userId);
@@ -120,7 +123,7 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
         reason,
       });
       setShowBlockModal(false);
-      await loadUsers(searchQuery);
+      await loadUsers(searchQuery, roleFilter);
     } catch (err) {
       console.error('Error blocking user:', err);
       alert(`❌ ${err instanceof Error ? err.message : 'Ошибка при блокировке'}`);
@@ -135,7 +138,7 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
     setBusyId(user.id);
     try {
       await callFunction('moderation-service', { action: 'unblock_user', userId: user.id });
-      await loadUsers(searchQuery);
+      await loadUsers(searchQuery, roleFilter);
     } catch (err) {
       console.error('Error unblocking user:', err);
       alert(`❌ ${err instanceof Error ? err.message : 'Ошибка при разблокировке'}`);
@@ -164,7 +167,7 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
           ? `⚠️ Предупреждение #${result.warning_count}. Пользователь автоматически заблокирован на 7 дней.`
           : `⚠️ Предупреждение #${result.warning_count} выдано ${user.first_name}`
       );
-      await loadUsers(searchQuery);
+      await loadUsers(searchQuery, roleFilter);
     } catch (err) {
       console.error('Error warning user:', err);
       alert(`❌ ${err instanceof Error ? err.message : 'Ошибка при выдаче предупреждения'}`);
@@ -203,7 +206,7 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
       setComplaints((prev) =>
         prev.map((c) => (c.id === complaintId ? { ...c, status: 'resolved' } : c))
       );
-      await loadUsers(searchQuery);
+      await loadUsers(searchQuery, roleFilter);
     } catch (err) {
       console.error('Error resolving complaint:', err);
       alert(`❌ ${err instanceof Error ? err.message : 'Не удалось закрыть жалобу'}`);
@@ -224,8 +227,35 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
       <div className="back-btn owner" onClick={onBack} style={{ cursor: 'pointer', marginBottom: 12 }}>
         ← Назад
       </div>
-      <div className="title">👥 Управление пользователями</div>
-      <div className="subtitle">Поиск, предупреждения и блокировки</div>
+      <div className="title">👷 Сотрудники</div>
+      <div className="subtitle">
+        {roleFilter === 'employee' ? 'Исполнители' : 'Все профили'} · найдено: {users.length}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setRoleFilter('employee')}
+          style={{
+            ...actionButton,
+            background: roleFilter === 'employee' ? 'var(--accent-owner)' : 'white',
+            color: roleFilter === 'employee' ? 'white' : 'var(--text-primary)',
+            border: '1px solid var(--border-card-owner)',
+          }}
+        >
+          👷 Сотрудники
+        </button>
+        <button
+          onClick={() => setRoleFilter('all')}
+          style={{
+            ...actionButton,
+            background: roleFilter === 'all' ? 'var(--accent-owner)' : 'white',
+            color: roleFilter === 'all' ? 'white' : 'var(--text-primary)',
+            border: '1px solid var(--border-card-owner)',
+          }}
+        >
+          Все роли
+        </button>
+      </div>
 
       <TextField
         placeholder="Поиск по имени, городу или Telegram ID..."
@@ -242,7 +272,7 @@ export const UserManagementScreen = ({ onBack }: { onBack: () => void }) => {
           ❌ {error}
           <div style={{ marginTop: 12 }}>
             <button
-              onClick={() => loadUsers(searchQuery)}
+              onClick={() => loadUsers(searchQuery, roleFilter)}
               style={{ ...actionButton, background: '#FEE2E2', color: '#DC2626' }}
             >
               Повторить

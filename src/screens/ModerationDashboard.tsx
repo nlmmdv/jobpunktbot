@@ -32,6 +32,9 @@ interface Stats {
   suspicious_vacancies: number;
   open_complaints?: number;
   active_blocks?: number;
+  total_employees?: number;
+  total_owners?: number;
+  active_shifts?: number;
 }
 
 type Tab = 'stats' | 'users' | 'vacancies' | 'suspicious';
@@ -201,6 +204,22 @@ export const ModerationDashboard = ({ onBack }: { onBack: () => void }) => {
       {/* СТАТИСТИКА */}
       {tab === 'stats' && stats && (
         <>
+          <SectionTitle>👥 Всего в системе</SectionTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+            <Card variant="owner" onClick={() => setTab('users')} style={{ textAlign: 'center', cursor: 'pointer' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: '#2563EB' }}>{stats.total_employees ?? 0}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Сотрудников</div>
+            </Card>
+            <Card variant="owner" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: '#10B981' }}>{stats.total_owners ?? 0}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>ПВЗ</div>
+            </Card>
+            <Card variant="owner" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: '#7C3AED' }}>{stats.active_shifts ?? 0}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Смен принято</div>
+            </Card>
+          </div>
+
           <SectionTitle>📈 Статистика сегодня/неделя</SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
             <Card

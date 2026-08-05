@@ -3,15 +3,17 @@ import { Screen, MenuGrid, type MenuItem } from '../components/ui';
 import { UserManagementScreen } from './admin/UserManagementScreen';
 import { CompanyManagementScreen } from './admin/CompanyManagementScreen';
 import { VacancyManagementScreen } from './admin/VacancyManagementScreen';
+import { ShiftManagementScreen } from './admin/ShiftManagementScreen';
 import { ModerationDashboard } from './ModerationDashboard';
 
-type Tab = 'menu' | 'dashboard' | 'users' | 'companies' | 'vacancies';
+type Tab = 'menu' | 'dashboard' | 'employees' | 'companies' | 'vacancies' | 'shifts';
 
 const MODERATION_MENU: MenuItem<Tab>[] = [
-  { screen: 'dashboard', icon: '📊', label: 'Сводка', sub: 'Статистика и спам', wide: true },
-  { screen: 'users', icon: '👥', label: 'Пользователи', sub: 'Жалобы и блокировки', wide: true },
-  { screen: 'companies', icon: '🏢', label: 'Компании', sub: 'Модерация ПВЗ', wide: true },
-  { screen: 'vacancies', icon: '📋', label: 'Вакансии', sub: 'Проверка публикаций', wide: true },
+  { screen: 'employees', icon: '👷', label: 'Сотрудники', sub: 'Жалобы и блокировки' },
+  { screen: 'vacancies', icon: '📋', label: 'Вакансии', sub: 'Проверка публикаций' },
+  { screen: 'shifts', icon: '📅', label: 'Смены', sub: 'Кто и где выходит' },
+  { screen: 'companies', icon: '🏢', label: 'Компании', sub: 'Модерация ПВЗ' },
+  { screen: 'dashboard', icon: '📊', label: 'Модерация', sub: 'Сводка и счётчики', wide: true },
 ];
 
 /**
@@ -24,9 +26,10 @@ export const ModerationHubScreen = ({ onBack }: { onBack: () => void }) => {
   const back = () => setScreen('menu');
 
   if (screen === 'dashboard') return <ModerationDashboard onBack={back} />;
-  if (screen === 'users') return <UserManagementScreen onBack={back} />;
+  if (screen === 'employees') return <UserManagementScreen onBack={back} />;
   if (screen === 'companies') return <CompanyManagementScreen onBack={back} />;
   if (screen === 'vacancies') return <VacancyManagementScreen onBack={back} />;
+  if (screen === 'shifts') return <ShiftManagementScreen onBack={back} />;
 
   return (
     <Screen>
@@ -34,7 +37,7 @@ export const ModerationHubScreen = ({ onBack }: { onBack: () => void }) => {
         ← Назад
       </div>
       <div className="title">🛡️ Модерация</div>
-      <div className="subtitle">Жалобы, предупреждения и блокировки</div>
+      <div className="subtitle">Сотрудники, вакансии и смены</div>
       <MenuGrid items={MODERATION_MENU} variant="owner" onSelect={setScreen} />
     </Screen>
   );

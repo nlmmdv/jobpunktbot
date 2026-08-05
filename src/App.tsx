@@ -19,6 +19,12 @@ const FreelancerMainScreen = lazy(() =>
 const OwnerMainScreen = lazy(() =>
   import('./screens/OwnerMainScreen').then((m) => ({ default: m.OwnerMainScreen }))
 );
+const ModeratorMainScreen = lazy(() =>
+  import('./screens/ModeratorMainScreen').then((m) => ({ default: m.ModeratorMainScreen }))
+);
+const BlockedScreen = lazy(() =>
+  import('./screens/BlockedScreen').then((m) => ({ default: m.BlockedScreen }))
+);
 
 type RegistrationStep = 'landing' | 'registration' | 'freelancer_reg' | 'owner_reg';
 
@@ -97,6 +103,19 @@ function App() {
   if (state === 'owner') {
     return <Suspense fallback={fullscreenLoader('Загрузка приложения...')}>
       <OwnerMainScreen />
+    </Suspense>;
+  }
+
+  if (state === 'moderator') {
+    return <Suspense fallback={fullscreenLoader('Загрузка приложения...')}>
+      <ModeratorMainScreen />
+    </Suspense>;
+  }
+
+  // Заблокированный не должен попадать в приложение ни под какой ролью.
+  if (state === 'blocked') {
+    return <Suspense fallback={fullscreenLoader('Загрузка...')}>
+      <BlockedScreen />
     </Suspense>;
   }
 

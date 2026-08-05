@@ -4,7 +4,8 @@ import { getInitData, waitForTelegramReady } from '../lib/telegram';
 
 // 'error' — сервер не ответил (сеть/таймаут). Отличается от 'no_profile':
 // существующего пользователя при обрыве нельзя гнать на регистрацию.
-export type AuthState = 'loading' | 'no_profile' | 'error' | 'freelancer' | 'owner';
+// 'moderator' — роль admin в БД: отдельный интерфейс контроля платформы.
+export type AuthState = 'loading' | 'no_profile' | 'blocked' | 'error' | 'freelancer' | 'owner' | 'moderator';
 
 const AUTH_TIMEOUT_MS = 15000;
 const AUTH_ATTEMPTS = 2;
@@ -22,10 +23,17 @@ export interface Profile {
   created_at?: string;
 }
 
+export interface BlockInfo {
+  reason: string | null;
+  unblock_at: string | null;
+}
+
 interface AuthContextType {
   state: AuthState;
   profile: Profile | null;
   error: string | null;
+  /** Заполнено, когда state === 'blocked'. */
+  block: BlockInfo | null;
   refreshAuth: () => Promise<void>;
   /** Обновить профиль в контексте после локального изменения (например
    *  сохранения на экране «Профиль»), чтобы UI сразу показал новые данные
@@ -39,10 +47,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [state, setState] = useState<AuthState>('loading');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [block, setBlock] = useState<BlockInfo | null>(null);
+
+  const stateForRole = (role: Profile['role']): AuthState =>
+    role === 'admin' ? 'moderator' : role === 'owner' ? 'owner' : 'freelancer';
+
+  /**
+   * Блокировка проверяется отдельным вызовом: кого проверять, сервер определяет
+   * по подписанному telegram_id. Без ретраев и с коротким таймаутом — это
+   * вспомогательная проверка, она не должна задерживать вход на плохой сети.
+   */
+  const blockedCheck = async (): Promise<BlockInfo | null> => {
+    try {
+      const status = await callFunction<{
+        is_blocked: boolean;
+        reason: string | null;
+        unblock_at: string | null;
+      }>('check-block', {}, { retries: 0, timeout: 5000 });
+
+      return status.is_blocked ? { reason: status.reason, unblock_at: status.unblock_at } : null;
+    } catch (err) {
+      // Недоступность проверки не должна закрывать вход добросовестным людям.
+      console.warn('Не удалось проверить блокировку:', err);
+      return null;
+    }
+  };
 
   const refreshAuth = async () => {
     setError(null);
+    setBlock(null);
     setState('loading');
+
+    // Локальная разработка: ?devRole=moderator|owner|freelancer подставляет профиль
+    // без Telegram. Условие начинается с import.meta.env.DEV, чтобы сборщик вырезал
+    // блок из прод-бандла целиком — вместе с чтением параметра из URL.
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('devRole')) {
+      const devRole = new URLSearchParams(window.location.search).get('devRole') as string;
+
+      // ?devRole=blocked — посмотреть, что видит заблокированный.
+      if (devRole === 'blocked') {
+        setProfile({ id: 'dev-blocked', telegram_id: 111111111, first_name: 'Иван', role: 'employee' });
+        setBlock({ reason: 'Сорвал три смены подряд', unblock_at: '2026-08-13T09:00:00Z' });
+        setState('blocked');
+        return;
+      }
+
+      const role: Profile['role'] = devRole === 'moderator' ? 'admin' : devRole === 'owner' ? 'owner' : 'employee';
+      setProfile({
+        id: `dev-${devRole}`,
+        telegram_id: 406489240,
+        first_name: devRole === 'moderator' ? 'Модератор' : devRole === 'owner' ? 'Пётр' : 'Иван',
+        role,
+        city: 'Москва',
+        status: 'active',
+      });
+      setState(stateForRole(role));
+      return;
+    }
 
     await waitForTelegramReady();
 
@@ -75,11 +136,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
+        const blockInfo = await blockedCheck();
+        if (blockInfo) {
+          setProfile(authProfile);
+          setBlock(blockInfo);
+          setState('blocked');
+          return;
+        }
+
         console.log('✅ User authenticated, role:', authProfile.role);
         setProfile(authProfile);
-        setState(
-          authProfile.role === 'owner' || authProfile.role === 'admin' ? 'owner' : 'freelancer'
-        );
+        setState(stateForRole(authProfile.role));
         return;
       } catch (err) {
         lastError = err;
@@ -101,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ state, profile, error, refreshAuth, applyProfile: setProfile }}>
+    <AuthContext.Provider value={{ state, profile, error, block, refreshAuth, applyProfile: setProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -64,7 +64,7 @@ Deno.serve((req) =>
       const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const now = Date.now();
 
-      const [acceptedRes, newUsersRes, newVacanciesRes, blocksRes] = await Promise.all([
+      const [acceptedRes, newUsersRes, newVacanciesRes, blocksRes, incidentsRes] = await Promise.all([
         supabase
           .from("job_matches")
           .select(`id, confirmed_at, freelancer_telegram_id, owner_telegram_id, owner_vacancies ( ${VACANCY_EMBED} )`)
@@ -80,6 +80,14 @@ Deno.serve((req) =>
           .select("*", { count: "exact", head: true })
           .is("lifted_at", null)
           .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`),
+        // Неявки, подтверждённые владельцем, — самый весомый сигнал в ленте:
+        // это не подозрение системы, а факт от пострадавшей стороны.
+        supabase
+          .from("shift_incidents")
+          .select("id, match_id, kind, description, reported_by_telegram_id, subject_telegram_id, created_at")
+          .eq("status", "open")
+          .order("created_at", { ascending: false })
+          .limit(10),
       ]);
 
       const accepted = acceptedRes.data || [];
@@ -97,13 +105,25 @@ Deno.serve((req) =>
         return start !== null && start <= now && (end === null || end > now);
       });
 
-      const names = await namesByTelegramId(
-        supabase,
-        unconfirmed.flatMap((m: any) => [m.freelancer_telegram_id, m.owner_telegram_id])
-      );
+      const openIncidents = incidentsRes.data || [];
+
+      const names = await namesByTelegramId(supabase, [
+        ...unconfirmed.flatMap((m: any) => [m.freelancer_telegram_id, m.owner_telegram_id]),
+        ...openIncidents.flatMap((i: any) => [i.subject_telegram_id, i.reported_by_telegram_id]),
+      ]);
 
       return {
         attention: {
+          incidents_count: openIncidents.length,
+          incidents: openIncidents.map((i: any) => ({
+            id: i.id,
+            match_id: i.match_id,
+            description: i.description,
+            subject_name: names.get(i.subject_telegram_id) ?? null,
+            subject_telegram_id: i.subject_telegram_id,
+            reporter_name: names.get(i.reported_by_telegram_id) ?? null,
+            created_at: i.created_at,
+          })),
           unconfirmed_count: unconfirmed.length,
           unconfirmed: unconfirmed.slice(0, 10).map((m: any) => ({
             id: m.id,
@@ -347,6 +367,28 @@ Deno.serve((req) =>
         reason: reason.trim(),
       });
       return { success: true, message: "Смена отменена" };
+    }
+
+    if (action === "resolve_incident") {
+      const { incidentId } = body as any;
+      if (!incidentId) throw new Error("Не указан инцидент");
+
+      const { error } = await supabase
+        .from("shift_incidents")
+        .update({
+          status: "resolved",
+          resolved_by: moderator.id,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq("id", incidentId);
+
+      if (error) throw new Error(`Не удалось закрыть инцидент: ${error.message}`);
+
+      await logAction(supabase, moderator, "resolve_incident", {
+        subjectId: incidentId,
+        reason: reason ?? null,
+      });
+      return { success: true };
     }
 
     // ------------------------------------------------------------------

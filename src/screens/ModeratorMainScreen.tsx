@@ -15,7 +15,17 @@ interface UnconfirmedShift {
   owner_name: string | null;
 }
 
+interface Incident {
+  id: string;
+  description: string | null;
+  subject_name: string | null;
+  reporter_name: string | null;
+  created_at: string;
+}
+
 interface Attention {
+  incidents_count: number;
+  incidents: Incident[];
   unconfirmed_count: number;
   unconfirmed: UnconfirmedShift[];
   running_now: number;
@@ -129,6 +139,19 @@ export const ModeratorMainScreen = () => {
             Требует внимания
           </div>
 
+          {attention.incidents_count > 0 &&
+            alertCard(
+              'danger',
+              '🚫',
+              `${attention.incidents_count} подтверждённых неявок`,
+              attention.incidents[0]
+                ? `${attention.incidents[0].subject_name || 'Сотрудник'} не вышел · заявил ${
+                    attention.incidents[0].reporter_name || 'владелец'
+                  }`
+                : 'Владелец подтвердил, что сотрудник не вышел',
+              () => setScreen('shifts')
+            )}
+
           {attention.unconfirmed_count > 0
             ? alertCard(
                 'danger',
@@ -141,7 +164,8 @@ export const ModeratorMainScreen = () => {
                   : 'Смена началась, сотрудник не отметился',
                 () => setScreen('shifts')
               )
-            : alertCard('plain', '✅', 'Все начатые смены подтверждены', '')}
+            : attention.incidents_count === 0 &&
+              alertCard('plain', '✅', 'Все начатые смены подтверждены', '')}
 
           {attention.active_blocks > 0 &&
             alertCard(

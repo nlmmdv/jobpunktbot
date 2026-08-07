@@ -65,6 +65,18 @@ export const confirmShiftKeyboard = (matchId: string) => ({
   ]],
 });
 
+/**
+ * Владельцу, когда смена началась, а фрилансер не подтвердил выход.
+ * Две кнопки вместо одной: молчание одинаково значит и «забыл нажать», и
+ * «не пришёл» — различить может только владелец, который стоит на точке.
+ */
+export const noShowKeyboard = (matchId: string) => ({
+  inline_keyboard: [[
+    { text: "✅ Он на месте", callback_data: `on_site:${matchId}` },
+    { text: "🚫 Не вышел", callback_data: `no_show:${matchId}` },
+  ]],
+});
+
 export const rateKeyboard = (matchId: string, role: RaterRole) => ({
   inline_keyboard: [
     [1, 2, 3, 4, 5].map((n) => ({
@@ -188,6 +200,33 @@ ${where(v)}`,
 ${where(v)}
 
 Загляни в приложение — есть другие смены.`,
+
+  /** Смена началась, подтверждения выхода нет — спрашиваем владельца. */
+  shiftNoConfirmationToOwner: (freelancerName: string, v: VacancyInfo) =>
+    `⚠️ <b>${esc(freelancerName)} не подтвердил выход</b>
+
+${where(v)}
+📅 Смена началась в ${formatTime(v.start_time)}
+
+Сотрудник на месте?`,
+
+  noShowRecorded: (freelancerName: string) =>
+    `Записали: ${esc(freelancerName)} не вышел на смену.
+
+Модератор разберётся. Если хочешь, опиши подробнее одним сообщением — или просто не отвечай.`,
+
+  onSiteRecorded: () => `Спасибо! Отметили смену как подтверждённую.`,
+
+  /** Модератору: владелец подтвердил неявку. */
+  noShowToModerator: (freelancerName: string, ownerName: string, v: VacancyInfo) =>
+    `🚫 <b>Неявка на смену</b>
+
+Сотрудник: ${esc(freelancerName)}
+ПВЗ: ${esc(ownerName)}
+${where(v)}
+📅 ${formatTime(v.start_time)} — ${formatTime(v.end_time)}
+
+Владелец подтвердил, что сотрудник не вышел.`,
 
   shiftCancelledToOwner: (freelancerName: string, v: VacancyInfo) =>
     `❌ ${esc(freelancerName)} не сможет выйти на смену${when(v)}

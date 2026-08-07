@@ -3,13 +3,16 @@ import { assertInternalCall } from "../_shared/internal-auth.ts";
 import {
   botMessages,
   confirmShiftKeyboard,
+  noShowKeyboard,
   rateKeyboard,
   type VacancyInfo,
 } from "../_shared/bot-messages.ts";
 
 // Вызывается по расписанию (pg_cron, каждые 10 минут). Делает две вещи:
 //   А) за час до начала смены просит фрилансера подтвердить выход;
-//   Б) после окончания смены просит обе стороны поставить оценку.
+//   Б) смена началась, а подтверждения нет — спрашивает ВЛАДЕЛЬЦА, на месте ли
+//      сотрудник (молчание одинаково значит «забыл нажать» и «не пришёл»);
+//   В) после окончания смены просит обе стороны поставить оценку.
 //
 // Часовой пояс: время смен (start_time/end_time) хранится без зоны и заведено в
 // московском, а сервер живёт в UTC. Поэтому «сейчас» считаем в Europe/Moscow —
@@ -126,6 +129,7 @@ Deno.serve(async (req) => {
     const rows = (data || []) as MatchRow[];
     let reminders = 0;
     let ratingRequests = 0;
+    let noShowChecks = 0;
 
     for (const row of rows) {
       const vacancy = row.owner_vacancies;
@@ -155,7 +159,30 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      /* Б) Смена закончилась — просим оценки у обеих сторон. */
+      /* Б) Смена началась, подтверждения нет — спрашиваем владельца.
+         Отметку об отправке держим в своей таблице shift_alerts: колонку в
+         job_matches не заводим, эта таблица живёт в общей базе. */
+      const sinceStart = start === null ? null : now - start;
+      if (!row.confirmed_at && sinceStart !== null && sinceStart > 0) {
+        const { error: alertError } = await supabase
+          .from("shift_alerts")
+          .insert({ match_id: row.id, alert_kind: "no_confirmation_owner" });
+
+        // Уникальный индекс (match_id, alert_kind) не даст отправить дважды:
+        // ошибка вставки означает, что сигнал уже уходил.
+        if (!alertError) {
+          const freelancerName = await fetchName(supabase, row.freelancer_telegram_id);
+          await sendMessage(
+            row.owner_telegram_id,
+            botMessages.shiftNoConfirmationToOwner(freelancerName, vacancy),
+            noShowKeyboard(row.id)
+          );
+          noShowChecks++;
+        }
+        continue;
+      }
+
+      /* В) Смена закончилась — просим оценки у обеих сторон. */
       if (row.confirmed_at && !row.rating_sent && end !== null && end < now) {
         const freelancerName = await fetchName(supabase, row.freelancer_telegram_id);
 
@@ -176,7 +203,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(
-      `shift-notifications: ${today} ${now}min — проверено ${rows.length}, напоминаний ${reminders}, запросов оценки ${ratingRequests}`
+      `shift-notifications: ${today} ${now}min — проверено ${rows.length}, напоминаний ${reminders}, проверок явки ${noShowChecks}, запросов оценки ${ratingRequests}`
     );
 
     return new Response(

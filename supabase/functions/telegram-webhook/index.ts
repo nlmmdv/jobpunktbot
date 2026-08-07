@@ -157,6 +157,76 @@ async function handleShiftDecision(
   }
 }
 
+/**
+ * Владелец ответил на вопрос «сотрудник на месте?».
+ *
+ * Отвечать может только владелец этой смены — проверяем по самой записи, а не
+ * по callback_data, как и в остальных обработчиках.
+ */
+async function handleAttendance(
+  supabase: Db,
+  actorId: number,
+  chatId: number,
+  matchId: string,
+  onSite: boolean
+) {
+  const match = await fetchMatch(supabase, matchId);
+  if (!match || match.owner_telegram_id !== actorId) {
+    console.error(`Rejected attendance report: telegram_id=${actorId}, match=${matchId}`);
+    return;
+  }
+
+  const [vacancy, freelancerName] = await Promise.all([
+    fetchVacancy(supabase, match.vacancy_id),
+    fetchName(supabase, match.freelancer_telegram_id),
+  ]);
+
+  if (onSite) {
+    // Сотрудник пришёл, просто не нажал кнопку — закрываем вопрос, отметив выход.
+    await supabase
+      .from("job_matches")
+      .update({ confirmed_at: new Date().toISOString() })
+      .eq("id", matchId);
+    await sendMessage(chatId, botMessages.onSiteRecorded());
+    return;
+  }
+
+  // Неявка. Уникальный индекс (match_id, kind) не даст завести дубль, если
+  // владелец нажмёт кнопку повторно.
+  const { data: incident } = await supabase
+    .from("shift_incidents")
+    .upsert(
+      {
+        match_id: matchId,
+        kind: "no_show",
+        reported_by_telegram_id: actorId,
+        subject_telegram_id: match.freelancer_telegram_id,
+        status: "open",
+      },
+      { onConflict: "match_id,kind" }
+    )
+    .select()
+    .single();
+
+  // Ждём необязательное описание следующим сообщением. Отдельного состояния в
+  // bot_states не заводим: его CHECK разрешает только waiting_feedback, а
+  // назначение различаем через data.
+  if (incident?.id) {
+    await supabase.from("bot_states").upsert(
+      {
+        telegram_id: actorId,
+        state: "waiting_feedback",
+        data: { purpose: "incident_description", incident_id: incident.id },
+      },
+      { onConflict: "telegram_id" }
+    );
+  }
+
+  const ownerName = await fetchName(supabase, actorId);
+  await sendAdminMessage(botMessages.noShowToModerator(freelancerName, ownerName, vacancy));
+  await sendMessage(chatId, botMessages.noShowRecorded(freelancerName));
+}
+
 async function handleRating(
   supabase: Db,
   actorId: number,
@@ -248,12 +318,26 @@ async function handleFeedbackStart(supabase: Db, actorId: number, chatId: number
 async function handleFeedback(supabase: Db, actorId: number, chatId: number, text: string): Promise<boolean> {
   const { data: state } = await supabase
     .from("bot_states")
-    .select("state")
+    .select("state, data")
     .eq("telegram_id", actorId)
     .maybeSingle();
 
   if (!state || state.state !== "waiting_feedback") {
     return false;
+  }
+
+  // Тем же состоянием ждём описание неявки — различаем по data.purpose.
+  const purpose = (state.data as { purpose?: string; incident_id?: string } | null)?.purpose;
+  if (purpose === "incident_description") {
+    const incidentId = (state.data as { incident_id?: string }).incident_id;
+    await supabase
+      .from("shift_incidents")
+      .update({ description: clampText(text, TEXT_LIMITS.comment) })
+      .eq("id", incidentId);
+
+    await supabase.from("bot_states").delete().eq("telegram_id", actorId);
+    await sendMessage(chatId, "Спасибо, передали модератору. 📬");
+    return true;
   }
 
   const { data: profile } = await supabase
@@ -332,6 +416,10 @@ Deno.serve(async (req) => {
         await handleShiftDecision(supabase, actorId, matchId, true);
       } else if (action === "cancel_shift" && matchId) {
         await handleShiftDecision(supabase, actorId, matchId, false);
+      } else if (action === "on_site" && matchId) {
+        await handleAttendance(supabase, actorId, chatId, matchId, true);
+      } else if (action === "no_show" && matchId) {
+        await handleAttendance(supabase, actorId, chatId, matchId, false);
       } else if (action === "rate" && matchId && rating) {
         await handleRating(
           supabase,

@@ -5,6 +5,8 @@ import { Screen, Loading, MenuGrid, type MenuItem } from '../components/ui';
 import { PeopleScreen } from './moderator/PeopleScreen';
 import { ShiftsScreen } from './moderator/ShiftsScreen';
 import { JournalScreen } from './moderator/JournalScreen';
+import { IncidentsScreen } from './moderator/IncidentsScreen';
+import { pluralWith } from '../lib/utils';
 
 interface UnconfirmedShift {
   id: string;
@@ -34,9 +36,10 @@ interface Attention {
   active_blocks: number;
 }
 
-type Tab = 'menu' | 'people' | 'shifts' | 'journal';
+type Tab = 'menu' | 'people' | 'shifts' | 'journal' | 'incidents';
 
 const MENU: MenuItem<Tab>[] = [
+  { screen: 'incidents', icon: '🚫', label: 'Неявки', sub: 'Заявлены владельцами' },
   { screen: 'people', icon: '👥', label: 'Люди', sub: 'Владельцы и сотрудники' },
   { screen: 'shifts', icon: '📅', label: 'Смены', sub: 'Кто и где выходит' },
   { screen: 'journal', icon: '📜', label: 'Журнал', sub: 'Действия модераторов', wide: true },
@@ -74,6 +77,7 @@ export const ModeratorMainScreen = () => {
   if (screen === 'people') return <PeopleScreen onBack={back} />;
   if (screen === 'shifts') return <ShiftsScreen onBack={back} />;
   if (screen === 'journal') return <JournalScreen onBack={back} />;
+  if (screen === 'incidents') return <IncidentsScreen onBack={back} />;
 
   const alertCard = (
     tone: 'danger' | 'warning' | 'plain',
@@ -143,20 +147,20 @@ export const ModeratorMainScreen = () => {
             alertCard(
               'danger',
               '🚫',
-              `${attention.incidents_count} подтверждённых неявок`,
+              `${pluralWith(attention.incidents_count, ['неявка', 'неявки', 'неявок'])} от владельцев`,
               attention.incidents[0]
                 ? `${attention.incidents[0].subject_name || 'Сотрудник'} не вышел · заявил ${
                     attention.incidents[0].reporter_name || 'владелец'
                   }`
                 : 'Владелец подтвердил, что сотрудник не вышел',
-              () => setScreen('shifts')
+              () => setScreen('incidents')
             )}
 
           {attention.unconfirmed_count > 0
             ? alertCard(
                 'danger',
                 '⚠️',
-                `${attention.unconfirmed_count} смен без подтверждения выхода`,
+                `${pluralWith(attention.unconfirmed_count, ['смена', 'смены', 'смен'])} без подтверждения выхода`,
                 attention.unconfirmed[0]
                   ? `Например: ${attention.unconfirmed[0].freelancer_name || 'сотрудник'} · ${
                       attention.unconfirmed[0].address || 'адрес не указан'
@@ -171,7 +175,7 @@ export const ModeratorMainScreen = () => {
             alertCard(
               'warning',
               '🚫',
-              `${attention.active_blocks} действующих блокировок`,
+              `${pluralWith(attention.active_blocks, ['действующая блокировка', 'действующие блокировки', 'действующих блокировок'])}`,
               'Проверьте, не истёк ли срок',
               () => setScreen('people')
             )}

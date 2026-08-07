@@ -369,24 +369,86 @@ Deno.serve((req) =>
       return { success: true, message: "Смена отменена" };
     }
 
+    // Полный список неявок для разбора: в ленте внимания их только десять и без
+    // подробностей смены.
+    if (action === "list_incidents") {
+      let query = supabase
+        .from("shift_incidents")
+        .select("id, match_id, kind, description, status, reported_by_telegram_id, subject_telegram_id, created_at, resolved_at")
+        .order("created_at", { ascending: false })
+        .limit(Number(limit));
+
+      if (status && status !== "all") query = query.eq("status", status);
+
+      const { data: incidents, error } = await query;
+      if (error) throw new Error(`Не удалось загрузить неявки: ${error.message}`);
+
+      const rows = incidents || [];
+
+      // Подробности смены подтягиваем отдельно: внешнего ключа
+      // shift_incidents -> job_matches нет, эмбед PostgREST не построит.
+      const matchIds = [...new Set(rows.map((i: any) => i.match_id))];
+      const matches = new Map<string, any>();
+      if (matchIds.length > 0) {
+        const { data: matchRows } = await supabase
+          .from("job_matches")
+          .select(`id, status, owner_vacancies ( ${VACANCY_EMBED} )`)
+          .in("id", matchIds);
+        for (const m of matchRows || []) matches.set(m.id, m);
+      }
+
+      const names = await namesByTelegramId(
+        supabase,
+        rows.flatMap((i: any) => [i.subject_telegram_id, i.reported_by_telegram_id])
+      );
+
+      return {
+        incidents: rows.map((i: any) => {
+          const vacancy = matches.get(i.match_id)?.owner_vacancies;
+          return {
+            id: i.id,
+            match_id: i.match_id,
+            status: i.status,
+            description: i.description,
+            created_at: i.created_at,
+            resolved_at: i.resolved_at,
+            subject_name: names.get(i.subject_telegram_id) ?? null,
+            subject_telegram_id: i.subject_telegram_id,
+            reporter_name: names.get(i.reported_by_telegram_id) ?? null,
+            address: vacancy?.address ?? null,
+            date: vacancy?.date ?? null,
+            start_time: vacancy?.start_time ?? null,
+            end_time: vacancy?.end_time ?? null,
+            payment: vacancy?.payment ?? null,
+          };
+        }),
+      };
+    }
+
     if (action === "resolve_incident") {
       const { incidentId } = body as any;
       if (!incidentId) throw new Error("Не указан инцидент");
 
+      // rejected — владелец ошибся, неявки не было: сотрудник не должен
+      // остаться с отметкой о срыве смены.
+      const { rejected } = body as any;
+      const newStatus = rejected ? "rejected" : "resolved";
+
       const { error } = await supabase
         .from("shift_incidents")
         .update({
-          status: "resolved",
+          status: newStatus,
           resolved_by: moderator.id,
           resolved_at: new Date().toISOString(),
         })
         .eq("id", incidentId);
 
-      if (error) throw new Error(`Не удалось закрыть инцидент: ${error.message}`);
+      if (error) throw new Error(`Не удалось закрыть неявку: ${error.message}`);
 
       await logAction(supabase, moderator, "resolve_incident", {
         subjectId: incidentId,
         reason: reason ?? null,
+        details: { status: newStatus },
       });
       return { success: true };
     }

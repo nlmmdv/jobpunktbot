@@ -118,3 +118,24 @@ export const todayMoscow = (): string =>
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+
+/**
+ * Русское склонение существительного после числа.
+ * Формы задаются как [1, 2, 5]: «неявка», «неявки», «неявок».
+ *
+ * Нужно потому, что «1 неявок» и «2 неявка» лезут в глаза на любом счётчике,
+ * а счётчиков в модерации много.
+ */
+export const plural = (count: number, forms: [string, string, string]): string => {
+  const abs = Math.abs(count) % 100;
+  const last = abs % 10;
+
+  if (abs > 10 && abs < 20) return forms[2];
+  if (last > 1 && last < 5) return forms[1];
+  if (last === 1) return forms[0];
+  return forms[2];
+};
+
+/** Число вместе со склонённым словом: «1 неявка», «5 неявок». */
+export const pluralWith = (count: number, forms: [string, string, string]): string =>
+  `${count} ${plural(count, forms)}`;

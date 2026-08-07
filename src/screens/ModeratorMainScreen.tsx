@@ -6,6 +6,7 @@ import { PeopleScreen } from './moderator/PeopleScreen';
 import { ShiftsScreen } from './moderator/ShiftsScreen';
 import { JournalScreen } from './moderator/JournalScreen';
 import { IncidentsScreen } from './moderator/IncidentsScreen';
+import { ModeratorsScreen } from './moderator/ModeratorsScreen';
 import { pluralWith } from '../lib/utils';
 
 interface UnconfirmedShift {
@@ -36,13 +37,14 @@ interface Attention {
   active_blocks: number;
 }
 
-type Tab = 'menu' | 'people' | 'shifts' | 'journal' | 'incidents';
+type Tab = 'menu' | 'people' | 'shifts' | 'journal' | 'incidents' | 'moderators';
 
 const MENU: MenuItem<Tab>[] = [
   { screen: 'incidents', icon: '🚫', label: 'Неявки', sub: 'Заявлены владельцами' },
   { screen: 'people', icon: '👥', label: 'Люди', sub: 'Владельцы и сотрудники' },
   { screen: 'shifts', icon: '📅', label: 'Смены', sub: 'Кто и где выходит' },
-  { screen: 'journal', icon: '📜', label: 'Журнал', sub: 'Действия модераторов', wide: true },
+  { screen: 'journal', icon: '📜', label: 'Журнал', sub: 'Действия модераторов' },
+  { screen: 'moderators', icon: '🛡️', label: 'Модераторы', sub: 'Назначение прав' },
 ];
 
 export const ModeratorMainScreen = () => {
@@ -78,6 +80,7 @@ export const ModeratorMainScreen = () => {
   if (screen === 'shifts') return <ShiftsScreen onBack={back} />;
   if (screen === 'journal') return <JournalScreen onBack={back} />;
   if (screen === 'incidents') return <IncidentsScreen onBack={back} />;
+  if (screen === 'moderators') return <ModeratorsScreen onBack={back} />;
 
   const alertCard = (
     tone: 'danger' | 'warning' | 'plain',

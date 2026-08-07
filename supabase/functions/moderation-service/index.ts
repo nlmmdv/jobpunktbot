@@ -1,9 +1,12 @@
 import { handleModeratorRequest } from "../_shared/moderator-handler.ts";
 import {
   activeBlocks,
+  appointmentChain,
   blockAccount,
+  grantModerator,
   logAction,
   requireModerator,
+  revokeModerator,
   sanitizeSearch,
   unblockAccount,
 } from "../_shared/moderation.ts";
@@ -451,6 +454,71 @@ Deno.serve((req) =>
         details: { status: newStatus },
       });
       return { success: true };
+    }
+
+    // ------------------------------------------------------------------
+    // Модераторы
+    // ------------------------------------------------------------------
+    if (action === "list_moderators") {
+      const { data: mods, error } = await supabase
+        .from("profiles")
+        .select("id, telegram_id, first_name, last_name, city, created_at")
+        .eq("role", "admin")
+        .order("created_at", { ascending: true });
+
+      if (error) throw new Error(`Не удалось загрузить модераторов: ${error.message}`);
+
+      const { data: grants } = await supabase
+        .from("moderator_grants")
+        .select("profile_id, granted_by, granted_at")
+        .is("revoked_at", null);
+
+      const grantBy = new Map<string, any>();
+      for (const g of grants || []) grantBy.set(g.profile_id, g);
+
+      const nameById = new Map<string, string>();
+      for (const m of mods || []) {
+        nameById.set(m.id, [m.first_name, m.last_name].filter(Boolean).join(" "));
+      }
+
+      // Кого текущий модератор не вправе снимать: себя и всех выше по цепочке.
+      const chain = await appointmentChain(supabase, moderator.id);
+
+      return {
+        moderators: (mods || []).map((m: any) => {
+          const grant = grantBy.get(m.id);
+          const isSelf = m.id === moderator.id;
+          const isAncestor = chain.has(m.id);
+          const isRoot = !grant;
+
+          return {
+            id: m.id,
+            telegram_id: m.telegram_id,
+            full_name: nameById.get(m.id) || "Без имени",
+            city: m.city,
+            granted_at: grant?.granted_at ?? null,
+            granted_by_name: grant?.granted_by ? nameById.get(grant.granted_by) ?? null : null,
+            is_root: isRoot,
+            is_self: isSelf,
+            can_revoke: !isSelf && !isAncestor && !isRoot,
+            revoke_hint: isSelf
+              ? "Это вы"
+              : isAncestor
+              ? "Назначил вас"
+              : isRoot
+              ? "Назначен через базу"
+              : null,
+          };
+        }),
+      };
+    }
+
+    if (action === "grant_moderator") {
+      return await grantModerator(supabase, moderator, subjectId);
+    }
+
+    if (action === "revoke_moderator") {
+      return await revokeModerator(supabase, moderator, subjectId);
     }
 
     // ------------------------------------------------------------------

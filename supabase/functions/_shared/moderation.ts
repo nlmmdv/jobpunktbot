@@ -203,3 +203,147 @@ export async function blockStatusFor(supabase: any, telegramId: number) {
     unblock_at: block?.expires_at ?? null,
   };
 }
+
+// ─── Назначение модераторов ──────────────────────────────────────────────────
+//
+// Назначать может любой модератор. Снять — не любого: нельзя разжаловать того,
+// кто выше тебя по цепочке назначений. Иначе назначенный сразу снимает
+// назначившего, и защита ничего не стоит.
+//
+// Цепочка транзитивна: если A назначил B, а B назначил C, то C не может снять
+// ни B, ни A.
+
+/** profiles.id всех, кто назначил этого модератора — прямо или через цепочку. */
+// deno-lint-ignore no-explicit-any
+export async function appointmentChain(supabase: any, profileId: string): Promise<Set<string>> {
+  const chain = new Set<string>();
+  let current: string | null = profileId;
+
+  // Ограничение на глубину заодно защищает от зацикливания, если данные битые.
+  for (let depth = 0; current && depth < 20; depth++) {
+    const { data } = await supabase
+      .from("moderator_grants")
+      .select("granted_by")
+      .eq("profile_id", current)
+      .is("revoked_at", null)
+      .maybeSingle();
+
+    const grantedBy: string | undefined = data?.granted_by;
+    if (!grantedBy || chain.has(grantedBy)) break;
+
+    chain.add(grantedBy);
+    current = grantedBy;
+  }
+
+  return chain;
+}
+
+/** Назначает модератором: меняет роль и запоминает, кто назначил. */
+// deno-lint-ignore no-explicit-any
+export async function grantModerator(supabase: any, moderator: Moderator, subjectId: string) {
+  if (!subjectId) throw new Error("Не указан пользователь");
+
+  const { data: subject } = await supabase
+    .from("profiles")
+    .select("id, telegram_id, role, first_name, last_name")
+    .eq("id", subjectId)
+    .maybeSingle();
+
+  if (!subject) throw new Error("Пользователь не найден");
+  if (subject.role === "admin") throw new Error("Уже модератор");
+
+  // Заблокированному права не выдаём: он даже войти не сможет.
+  const blocked = await blockStatusFor(supabase, subject.telegram_id);
+  if (blocked.is_blocked) throw new Error("Нельзя назначить заблокированного");
+
+  const { error: grantError } = await supabase.from("moderator_grants").insert({
+    profile_id: subject.id,
+    telegram_id: subject.telegram_id,
+    granted_by: moderator.id,
+    previous_role: subject.role,
+  });
+
+  if (grantError) throw new Error(`Не удалось назначить: ${grantError.message}`);
+
+  const { error: roleError } = await supabase
+    .from("profiles")
+    .update({ role: "admin" })
+    .eq("id", subject.id);
+
+  // Роль не сменилась — откатываем запись, иначе человек числится модератором,
+  // но прав не имеет.
+  if (roleError) {
+    await supabase.from("moderator_grants").delete().eq("profile_id", subject.id).is("revoked_at", null);
+    throw new Error(`Не удалось сменить роль: ${roleError.message}`);
+  }
+
+  await logAction(supabase, moderator, "grant_moderator", {
+    subjectId: subject.id,
+    subjectTelegramId: subject.telegram_id,
+    details: { previous_role: subject.role },
+  });
+
+  return { granted: true, name: [subject.first_name, subject.last_name].filter(Boolean).join(" ") };
+}
+
+/** Снимает права модератора, если это разрешено правилами. */
+// deno-lint-ignore no-explicit-any
+export async function revokeModerator(supabase: any, moderator: Moderator, subjectId: string) {
+  if (!subjectId) throw new Error("Не указан пользователь");
+  if (subjectId === moderator.id) throw new Error("Нельзя снять права с себя");
+
+  const { data: subject } = await supabase
+    .from("profiles")
+    .select("id, telegram_id, role, first_name")
+    .eq("id", subjectId)
+    .maybeSingle();
+
+  if (!subject) throw new Error("Пользователь не найден");
+  if (subject.role !== "admin") throw new Error("Этот человек не модератор");
+
+  // Главное правило: назначивший — и любой выше по цепочке — неприкосновенен.
+  const chain = await appointmentChain(supabase, moderator.id);
+  if (chain.has(subjectId)) {
+    throw new Error("Нельзя снять того, кто назначил вас (403)");
+  }
+
+  const { data: grant } = await supabase
+    .from("moderator_grants")
+    .select("id, previous_role")
+    .eq("profile_id", subjectId)
+    .is("revoked_at", null)
+    .maybeSingle();
+
+  // Нет записи о назначении — модератор заведён напрямую в БД. Такого снимаем
+  // тоже только через БД: иначе назначенный сможет разжаловать первого.
+  if (!grant) {
+    throw new Error("Этот модератор назначен через базу — снять можно только там (403)");
+  }
+
+  const { count } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .eq("role", "admin");
+
+  if ((count || 0) <= 1) throw new Error("Нельзя снять последнего модератора");
+
+  const { error: roleError } = await supabase
+    .from("profiles")
+    .update({ role: grant.previous_role })
+    .eq("id", subjectId);
+
+  if (roleError) throw new Error(`Не удалось вернуть прежнюю роль: ${roleError.message}`);
+
+  await supabase
+    .from("moderator_grants")
+    .update({ revoked_at: new Date().toISOString(), revoked_by: moderator.id })
+    .eq("id", grant.id);
+
+  await logAction(supabase, moderator, "revoke_moderator", {
+    subjectId,
+    subjectTelegramId: subject.telegram_id,
+    details: { restored_role: grant.previous_role },
+  });
+
+  return { revoked: true, restored_role: grant.previous_role };
+}

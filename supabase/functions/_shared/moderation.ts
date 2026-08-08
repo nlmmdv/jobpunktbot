@@ -182,6 +182,17 @@ export async function unblockAccount(supabase: any, moderator: Moderator, subjec
   return { lifted_count: lifted?.length || 0 };
 }
 
+/** Таблицы модерации ещё нет: миграцию не применили, а функции уже задеплоены. */
+// deno-lint-ignore no-explicit-any
+function isMissingTable(error: any): boolean {
+  // 42P01 — undefined_table в Postgres, PGRST205 — «нет таблицы в схеме» у PostgREST.
+  return (
+    error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    /does not exist|schema cache/i.test(error?.message ?? "")
+  );
+}
+
 /** Статус блокировки одного аккаунта — для проверки на входе в приложение. */
 // deno-lint-ignore no-explicit-any
 export async function blockStatusFor(supabase: any, telegramId: number) {
@@ -194,7 +205,18 @@ export async function blockStatusFor(supabase: any, telegramId: number) {
     .order("created_at", { ascending: false })
     .limit(1);
 
-  if (error) throw new Error(`Не удалось проверить блокировку: ${error.message}`);
+  if (error) {
+    // Отсутствие таблицы не должно валить отклики, вакансии и смены у всех
+    // пользователей: это ошибка выкладки, а не попытка обхода. Пропускаем
+    // дальше, но пишем в лог, чтобы это не осталось незамеченным.
+    if (isMissingTable(error)) {
+      console.error(
+        "[Moderation] Таблицы moderation_blocks нет — проверка блокировки пропущена. Примените миграцию 007_moderator.sql."
+      );
+      return { is_blocked: false, reason: null, unblock_at: null };
+    }
+    throw new Error(`Не удалось проверить блокировку: ${error.message}`);
+  }
 
   const block = (data || [])[0];
   return {

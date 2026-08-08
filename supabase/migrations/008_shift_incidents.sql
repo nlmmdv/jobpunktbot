@@ -81,14 +81,14 @@ CREATE INDEX IF NOT EXISTS shift_incidents_subject_idx
 
 DO $$
 DECLARE
-  t text;
+  tbl text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['shift_incidents', 'shift_alerts']
+  FOREACH tbl IN ARRAY ARRAY['shift_incidents', 'shift_alerts']
   LOOP
-    IF EXISTS (SELECT 1 FROM _pre_existing p WHERE p.t = t) THEN
-      RAISE NOTICE 'Таблица % существовала до миграции — RLS не трогаем.', t;
+    IF EXISTS (SELECT 1 FROM _pre_existing p WHERE p.t = tbl) THEN
+      RAISE NOTICE 'Таблица % существовала до миграции — RLS не трогаем.', tbl;
     ELSE
-      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     END IF;
   END LOOP;
 END $$;

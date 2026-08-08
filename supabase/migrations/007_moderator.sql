@@ -104,14 +104,14 @@ CREATE INDEX IF NOT EXISTS moderation_actions_created_idx
 -- Доступ только у service_role: RLS включаем ТОЛЬКО на созданном этой миграцией.
 DO $$
 DECLARE
-  t text;
+  tbl text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['moderation_blocks', 'moderation_actions']
+  FOREACH tbl IN ARRAY ARRAY['moderation_blocks', 'moderation_actions']
   LOOP
-    IF EXISTS (SELECT 1 FROM _pre_existing p WHERE p.t = t) THEN
-      RAISE NOTICE 'Таблица % существовала до миграции — RLS не трогаем.', t;
+    IF EXISTS (SELECT 1 FROM _pre_existing p WHERE p.t = tbl) THEN
+      RAISE NOTICE 'Таблица % существовала до миграции — RLS не трогаем.', tbl;
     ELSE
-      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     END IF;
   END LOOP;
 END $$;

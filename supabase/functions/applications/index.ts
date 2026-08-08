@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.0";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireTelegramId } from "../_shared/telegram-auth.ts";
+import { assertNotBlocked, BlockedError } from "../_shared/moderation.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -27,6 +28,10 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Заблокированный аккаунт не должен действовать в обход интерфейса:
+    // подпись у него остаётся валидной, а вход в приложение он миновать может.
+    await assertNotBlocked(supabase, telegramId);
 
     if (action === "create") {
       const { vacancy_id } = data;
@@ -119,6 +124,9 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ success: false, error: "Unknown action" }, 400);
   } catch (err) {
+    if (err instanceof BlockedError) {
+      return jsonResponse({ success: false, error: err.message }, 403);
+    }
     console.error("Error:", err);
     return jsonResponse({ success: false, error: (err as Error).message }, 500);
   }

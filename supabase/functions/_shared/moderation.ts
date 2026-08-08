@@ -347,3 +347,34 @@ export async function revokeModerator(supabase: any, moderator: Moderator, subje
 
   return { revoked: true, restored_role: grant.previous_role };
 }
+
+/** Отказ по блокировке. Отдельный тип, чтобы функции вернули 403, а не 500 —
+ *  так же, как это сделано для LimitError и RateLimitError. */
+export class BlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BlockedError";
+  }
+}
+
+/**
+ * Отклоняет любое действие заблокированного аккаунта.
+ *
+ * Проверки на входе в приложение недостаточно: initData у заблокированного
+ * остаётся валидным, и он может дёрнуть функцию напрямую, минуя интерфейс.
+ * Для того, кого блокируют за срыв смен, это существенно — поэтому запрет
+ * стоит на сервере, в каждой функции действия.
+ *
+ */
+// deno-lint-ignore no-explicit-any
+export async function assertNotBlocked(supabase: any, telegramId: number): Promise<void> {
+  const status = await blockStatusFor(supabase, telegramId);
+  if (!status.is_blocked) return;
+
+  const until = status.unblock_at
+    ? `до ${new Date(status.unblock_at).toLocaleString("ru")}`
+    : "бессрочно";
+  throw new BlockedError(
+    `Аккаунт заблокирован ${until}. Причина: ${status.reason || "не указана"}`
+  );
+}

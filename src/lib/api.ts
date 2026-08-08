@@ -7,6 +7,12 @@ const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | un
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 
+/**
+ * Сервер сообщил, что аккаунт заблокирован. Слушает AuthContext, чтобы увести
+ * человека на экран блокировки прямо посреди сессии, а не при следующем входе.
+ */
+export const BLOCKED_EVENT = 'auth:blocked';
+
 export class ApiError extends Error {
   public code?: string;
   public status?: number;
@@ -120,7 +126,14 @@ export async function callFunction<T = any>(
       if (!response.ok || data?.success === false) {
         const errorMsg = data?.error || data?.details || `HTTP ${response.status}`;
         console.error(`[API] ${name} error:`, { status: response.status, error: errorMsg, data });
-        throw new ApiError(errorMsg, 'API_ERROR', response.status);
+
+        // Заблокировали посреди сессии: код читаем из ответа, а не из текста
+        // сообщения — оно меняется вместе с причиной и сроком.
+        if (data?.code === 'BLOCKED') {
+          window.dispatchEvent(new CustomEvent(BLOCKED_EVENT));
+        }
+
+        throw new ApiError(errorMsg, data?.code || 'API_ERROR', response.status);
       }
 
       return data as T;

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { callFunction, ApiError } from '../lib/api';
+import { callFunction, ApiError, BLOCKED_EVENT } from '../lib/api';
 import { getInitData, waitForTelegramReady } from '../lib/telegram';
 
 // 'error' — сервер не ответил (сеть/таймаут). Отличается от 'no_profile':
@@ -165,6 +165,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshAuth();
+  }, []);
+
+  // Если человека заблокировали, пока он работал, любой его следующий запрос
+  // вернёт 403 с кодом BLOCKED. Перезапускаем авторизацию — она подтянет
+  // причину со сроком и покажет экран блокировки.
+  useEffect(() => {
+    const onBlocked = () => {
+      setState((current) => (current === 'blocked' ? current : 'loading'));
+      refreshAuth();
+    };
+    window.addEventListener(BLOCKED_EVENT, onBlocked);
+    return () => window.removeEventListener(BLOCKED_EVENT, onBlocked);
   }, []);
 
   return (

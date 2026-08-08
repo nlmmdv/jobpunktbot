@@ -359,7 +359,9 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: err.message }, 429);
     }
     if (err instanceof BlockedError) {
-      return jsonResponse({ success: false, error: err.message }, 403);
+      // code читает клиент, чтобы отправить человека на экран блокировки,
+      // не разбирая текст сообщения.
+      return jsonResponse({ success: false, error: err.message, code: "BLOCKED" }, 403);
     }
     console.error("Error:", err);
     return jsonResponse({ success: false, error: (err as Error).message }, 500);
